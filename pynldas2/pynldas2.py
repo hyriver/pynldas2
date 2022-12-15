@@ -119,6 +119,7 @@ def get_byloc(
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
 
     def txt2df(txt: str, resp_id: int) -> pd.Series:
+        """Convert text to dataframe."""
         try:
             data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
         except EmptyDataError:
@@ -308,6 +309,7 @@ def get_bygeom(
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
 
     def txt2da(txt: str, resp_id: int) -> xr.DataArray:
+        """Convert text to dataarray."""
         try:
             data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
         except EmptyDataError:
