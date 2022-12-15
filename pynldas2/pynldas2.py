@@ -11,8 +11,8 @@ import async_retriever as ar
 import pandas as pd
 import pygeoutils as hgu
 import pyproj
-import xarray as xr
 import rioxarray  # noqa: F401
+import xarray as xr
 from numpy.core._exceptions import UFuncTypeError
 from pandas.errors import EmptyDataError
 
@@ -22,7 +22,7 @@ if TYPE_CHECKING:
     from shapely.geometry import MultiPolygon, Polygon
 
 CRSTYPE = Union[int, str, pyproj.CRS]
-
+URL = "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi"
 __all__ = ["get_bycoords", "get_bygeom"]
 
 NLDAS_VARS = {
@@ -86,16 +86,15 @@ def get_byloc(
     pandas.DataFrame
         The requested data as a dataframe.
     """
-    url = "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi"
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date) + pd.Timedelta("1D")
     if start < pd.to_datetime("1979-01-01T13"):
-        raise InputRangeError("NLDAS data starts in 1979")
+        raise InputRangeError("start_date", "1979-01-01 to yesterday")
     if end > pd.Timestamp.now() - pd.Timedelta("1D"):
-        raise InputRangeError("End date must be in the past")
+        raise InputRangeError("end_date", "1979-01-01 to yesterday")
 
     if variables is None:
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for _, d in NLDAS_VARS.items()]
+        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
     else:
         clm_vars = list(variables) if isinstance(variables, list) else [variables]
         if any(v not in NLDAS_VARS for v in variables):
@@ -104,34 +103,29 @@ def get_byloc(
 
     dates = pd.date_range(start, end, freq="10000D").tolist()
     dates = dates + [end] if dates[-1] < end else dates
-    urls, kwds = zip(
-        *[
-            (
-                url,
-                {
-                    "params": {
-                        "type": "asc2",
-                        "location": f"GEOM:POINT({lon}, {lat})",
-                        "variable": v,
-                        "startDate": s.strftime("%Y-%m-%dT%H"),
-                        "endDate": e.strftime("%Y-%m-%dT%H"),
-                    }
-                },
-            )
-            for (s, e), v in itertools.product(zip(dates[:-1], dates[1:]), clm_vars)
-        ]
-    )
+    kwds = [
+        {
+            "params": {
+                "type": "asc2",
+                "location": f"GEOM:POINT({lon}, {lat})",
+                "variable": v,
+                "startDate": s.strftime("%Y-%m-%dT%H"),
+                "endDate": e.strftime("%Y-%m-%dT%H"),
+            }
+        }
+        for (s, e), v in itertools.product(zip(dates[:-1], dates[1:]), clm_vars)
+    ]
 
-    resp = ar.retrieve_text(urls, kwds, max_workers=4)
+    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
 
     def txt2df(txt: str, resp_id: int) -> pd.Series:
         try:
             data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
         except EmptyDataError:
             return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
-        except UFuncTypeError:
+        except UFuncTypeError as ex:
             msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
-            raise NLDASServiceError(msg)
+            raise NLDASServiceError(msg) from ex
         data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
         data = data.drop(columns="Date&Time")
         data.index.freq = data.index.inferred_freq
@@ -188,8 +182,7 @@ def get_bycoords(
     pts = hgu.Coordinates(lons, lats, bounds)
     coords_val = list(zip(pts.points.x, pts.points.y))
     if len(coords_val) != len(coords):
-        msg = f"Coordinate should be within {bounds}"
-        raise InputRangeError(msg)
+        raise InputRangeError("coords", f"{bounds}")
 
     nldas = functools.partial(
         get_byloc, variables=variables, start_date=start_date, end_date=end_date
@@ -208,7 +201,6 @@ def get_bycoords(
         for v in clm_ds.data_vars:
             clm_ds[v].attrs = NLDAS_VARS[v]
         return clm_ds
-    return
 
 
 def get_bygeom(
@@ -243,12 +235,12 @@ def get_bygeom(
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date) + pd.Timedelta("1D")
     if start < pd.to_datetime("1979-01-01T13"):
-        raise InputRangeError("NLDAS data starts in 1979")
+        raise InputRangeError("start_date", "1979-01-01 to yesterday")
     if end > pd.Timestamp.now() - pd.Timedelta("1D"):
-        raise InputRangeError("End date must be in the past")
+        raise InputRangeError("end_date", "1979-01-01 to yesterday")
 
     if variables is None:
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for _, d in NLDAS_VARS.items()]
+        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
     else:
         clm_vars = list(variables) if isinstance(variables, list) else [variables]
         if any(v not in NLDAS_VARS for v in variables):
@@ -270,36 +262,28 @@ def get_bygeom(
     geom = hgu.geo2polygon(geometry, geo_crs, nldas_grid.rio.crs)
     msk = nldas_grid.CONUS_mask.rio.clip([geom], all_touched=True)
     coords = itertools.product(msk.get_index("lon"), msk.get_index("lat"))
-    urls, kwds = zip(
-        *[
-            (
-                "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi",
-                {
-                    "params": {
-                        "type": "asc2",
-                        "location": f"GEOM:POINT({lon}, {lat})",
-                        "variable": v,
-                        "startDate": s.strftime("%Y-%m-%dT%H"),
-                        "endDate": e.strftime("%Y-%m-%dT%H"),
-                    }
-                },
-            )
-            for (lon, lat), (s, e), v in itertools.product(
-                coords, zip(dates[:-1], dates[1:]), clm_vars
-            )
-        ]
-    )
-
-    resp = ar.retrieve_text(urls, kwds, max_workers=4)
+    kwds = [
+        {
+            "params": {
+                "type": "asc2",
+                "location": f"GEOM:POINT({lon}, {lat})",
+                "variable": v,
+                "startDate": s.strftime("%Y-%m-%dT%H"),
+                "endDate": e.strftime("%Y-%m-%dT%H"),
+            }
+        }
+        for (lon, lat), (s, e), v in itertools.product(coords, zip(dates[:-1], dates[1:]), clm_vars)
+    ]
+    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
 
     def txt2da(txt: str, resp_id: int) -> xr.DataArray:
         try:
             data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
         except EmptyDataError:
             return xr.DataArray(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
-        except UFuncTypeError:
+        except UFuncTypeError as ex:
             msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
-            raise NLDASServiceError(msg)
+            raise NLDASServiceError(msg) from ex
         data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
         data = data["Data"]
         data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
@@ -317,7 +301,7 @@ def get_bygeom(
     clm.attrs["tz"] = "UTC"
     clm = clm.transpose("time", "y", "x")
     for v in clm:
-        clm[v].attrs = NLDAS_VARS[v]
+        clm[v].attrs = NLDAS_VARS[str(v)]
     clm = clm.rio.write_transform()
     clm = clm.rio.write_crs(4326)
     clm = clm.rio.write_coordinate_system()
