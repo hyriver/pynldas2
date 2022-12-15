@@ -79,6 +79,7 @@ def _check_inputs(
     end_date: str,
     variables: str | list[str] | None = None,
 ) -> tuple[list[pd.Timestamp], list[str]]:
+    """Check inputs."""
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date) + pd.Timedelta("1D")
     if start < pd.to_datetime("1979-01-01T13"):
