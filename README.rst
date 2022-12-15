@@ -214,7 +214,7 @@ land, water, soil, and vegetation masks:
     grid = nldas.get_grid_mask()
 
 .. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/nldas_grid.png
-    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/nldas.ipunb
+    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/nldas.ipynb
 
 Next, we use `PyGeoHydro <https://github.com/hyriver/pygeohydro>`__ to get the
 geometry of a HUC8 with ID of 1306003, then we get the forcing data within the
@@ -229,7 +229,7 @@ obtained geometry.
     clm = nldas.get_bygeom(geometry, "2010-01-01", "2010-01-31", 4326)
 
 .. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/nldas_hum.png
-    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/nldas.ipunb
+    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/nldas.ipynb
 
 Road Map
 --------
