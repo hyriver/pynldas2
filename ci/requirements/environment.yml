@@ -28,13 +28,15 @@ dependencies:
   - ujson
   - xarray >=2022.03.0
 
-  # pynldas2 deps
-  # - async-retriever >=0.3.8
-  - pandas >=1.0
-  # - pygeoutils >=0.13.10
-  # - pyproj >=2.2
-  # - xarray >=2022.03.0
-  # - rioxarray >=0.11
+  # pynldas2
+  # - async-retriever>=0.3.6
+  - h5netcdf
+  - numpy>=1.17
+  - pandas>=1.0
+  # - pygeoutils>=0.13.10
+  - pyproj>=2.2
+  - rioxarray>=0.11
+  - xarray>=2022.03.0
 
   - pytest-cov
   - pytest-xdist
