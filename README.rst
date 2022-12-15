@@ -112,24 +112,6 @@ PyNLDAS2: Hourly NLDAS-2 Data
 
 |
 
-.. |check| raw:: html
-
-    <input checked=""  type="checkbox">
-
-.. |check_| raw:: html
-
-    <input checked=""  disabled="" type="checkbox">
-
-.. |uncheck| raw:: html
-
-    <input type="checkbox">
-
-.. |uncheck_| raw:: html
-
-    <input disabled="" type="checkbox">
-
-|
-
 Features
 --------
 
@@ -252,9 +234,11 @@ obtained geometry.
 Road Map
 --------
 
-- |uncheck| Add PET calculation functions similar to
-  `PyDaymet <https://github.com/hyriver/pydaymet>`__ but at daily timescale.
-- |uncheck| Add a command line interfaces.
+.. task-list::
+
+    - [ ] Add PET calculation functions similar to
+    `PyDaymet <https://github.com/hyriver/pydaymet>`__ but at daily timescale.
+    - [ ] Add a command line interfaces.
 
 Contributing
 ------------
