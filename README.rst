@@ -228,7 +228,7 @@ obtained geometry.
     geometry = huc8.byids("huc8", "13060003").geometry[0]
     clm = nldas.get_bygeom(geometry, "2010-01-01", "2010-01-31", 4326)
 
-.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/nldas_hum.png
+.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/nldas_humidity.png
     :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/nldas.ipynb
 
 Road Map
