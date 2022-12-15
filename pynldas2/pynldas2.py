@@ -57,6 +57,49 @@ NLDAS_VARS = {
 __all__ = ["get_bycoords", "get_grid_mask", "get_bygeom"]
 
 
+def _txt2df(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> pd.Series:
+    """Convert text to dataframe."""
+    try:
+        data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+    except EmptyDataError:
+        return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
+    except UFuncTypeError as ex:
+        msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
+        raise NLDASServiceError(msg) from ex
+    data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
+    data = data.drop(columns="Date&Time")
+    data.index.freq = data.index.inferred_freq
+    data = data["Data"]
+    data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
+    return data
+
+
+def _check_inputs(
+    start_date: str,
+    end_date: str,
+    variables: str | list[str] | None = None,
+) -> tuple[list[pd.Timestamp], list[str]]:
+    start = pd.to_datetime(start_date)
+    end = pd.to_datetime(end_date) + pd.Timedelta("1D")
+    if start < pd.to_datetime("1979-01-01T13"):
+        raise InputRangeError("start_date", "1979-01-01 to yesterday")
+    if end > pd.Timestamp.now() - pd.Timedelta("1D"):
+        raise InputRangeError("end_date", "1979-01-01 to yesterday")
+
+    dates = pd.date_range(start, end, freq="10000D").tolist()
+    dates = dates + [end] if dates[-1] < end else dates
+
+    if variables is None:
+        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
+    else:
+        clm_vars = list(variables) if isinstance(variables, list) else [variables]
+        if any(v not in NLDAS_VARS for v in variables):
+            raise InputValueError("variables", list(NLDAS_VARS))
+        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{NLDAS_VARS[v]['nldas_name']}" for v in variables]
+
+    return dates, clm_vars
+
+
 def get_byloc(
     lon: float,
     lat: float,
@@ -86,23 +129,7 @@ def get_byloc(
     pandas.DataFrame
         The requested data as a dataframe.
     """
-    start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date) + pd.Timedelta("1D")
-    if start < pd.to_datetime("1979-01-01T13"):
-        raise InputRangeError("start_date", "1979-01-01 to yesterday")
-    if end > pd.Timestamp.now() - pd.Timedelta("1D"):
-        raise InputRangeError("end_date", "1979-01-01 to yesterday")
-
-    if variables is None:
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
-    else:
-        clm_vars = list(variables) if isinstance(variables, list) else [variables]
-        if any(v not in NLDAS_VARS for v in variables):
-            raise InputValueError("variables", list(NLDAS_VARS))
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{NLDAS_VARS[v]['nldas_name']}" for v in variables]
-
-    dates = pd.date_range(start, end, freq="10000D").tolist()
-    dates = dates + [end] if dates[-1] < end else dates
+    dates, clm_vars = _check_inputs(start_date, end_date, variables)
     kwds = [
         {
             "params": {
@@ -118,23 +145,7 @@ def get_byloc(
 
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
 
-    def txt2df(txt: str, resp_id: int) -> pd.Series:
-        """Convert text to dataframe."""
-        try:
-            data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
-        except EmptyDataError:
-            return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
-        except UFuncTypeError as ex:
-            msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
-            raise NLDASServiceError(msg) from ex
-        data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
-        data = data.drop(columns="Date&Time")
-        data.index.freq = data.index.inferred_freq
-        data = data["Data"]
-        data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
-        return data
-
-    clm_list = (txt2df(txt, i) for i, txt in enumerate(resp))
+    clm_list = (_txt2df(txt, i, kwds) for i, txt in enumerate(resp))
     clm_merged = (
         pd.concat(df)
         for _, df in itertools.groupby(
@@ -243,6 +254,27 @@ def get_grid_mask():
     return grid
 
 
+def _txt2da(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> xr.DataArray:
+    """Convert text to dataarray."""
+    try:
+        data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+    except EmptyDataError:
+        return xr.DataArray(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
+    except UFuncTypeError as ex:
+        msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
+        raise NLDASServiceError(msg) from ex
+    data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
+    data = data["Data"]
+    data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
+    data.index.name = "time"
+    data.index = data.index.tz_localize(None)
+    da = data.to_xarray()
+    lon, lat = kwds[resp_id]["params"]["location"].split("(")[-1].strip(")").split(",")
+    da = da.assign_coords(x=float(lon), y=float(lat))
+    da = da.expand_dims("y").expand_dims("x")
+    return da
+
+
 def get_bygeom(
     geometry: Polygon | MultiPolygon | tuple[float, float, float, float],
     start_date: str,
@@ -272,23 +304,7 @@ def get_bygeom(
     xarray.Dataset
         The requested forcing data.
     """
-    start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date) + pd.Timedelta("1D")
-    if start < pd.to_datetime("1979-01-01T13"):
-        raise InputRangeError("start_date", "1979-01-01 to yesterday")
-    if end > pd.Timestamp.now() - pd.Timedelta("1D"):
-        raise InputRangeError("end_date", "1979-01-01 to yesterday")
-
-    if variables is None:
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
-    else:
-        clm_vars = list(variables) if isinstance(variables, list) else [variables]
-        if any(v not in NLDAS_VARS for v in variables):
-            raise InputValueError("variables", list(NLDAS_VARS))
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{NLDAS_VARS[v]['nldas_name']}" for v in variables]
-
-    dates = pd.date_range(start, end, freq="10000D").tolist()
-    dates = dates + [end] if dates[-1] < end else dates
+    dates, clm_vars = _check_inputs(start_date, end_date, variables)
 
     nldas_grid = get_grid_mask()
     geom = hgu.geo2polygon(geometry, geo_crs, nldas_grid.rio.crs)
@@ -308,27 +324,7 @@ def get_bygeom(
     ]
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
 
-    def txt2da(txt: str, resp_id: int) -> xr.DataArray:
-        """Convert text to dataarray."""
-        try:
-            data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
-        except EmptyDataError:
-            return xr.DataArray(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
-        except UFuncTypeError as ex:
-            msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
-            raise NLDASServiceError(msg) from ex
-        data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
-        data = data["Data"]
-        data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
-        data.index.name = "time"
-        data.index = data.index.tz_localize(None)
-        da = data.to_xarray()
-        lon, lat = kwds[resp_id]["params"]["location"].split("(")[-1].strip(")").split(",")
-        da = da.assign_coords(x=float(lon), y=float(lat))
-        da = da.expand_dims("y").expand_dims("x")
-        return da
-
-    clm = xr.merge(txt2da(txt, i) for i, txt in enumerate(resp))
+    clm = xr.merge(_txt2da(txt, i, kwds) for i, txt in enumerate(resp))
     clm = clm.rename({d["nldas_name"]: n for n, d in NLDAS_VARS.items() if d["nldas_name"] in clm})
     clm = clm.sel(time=slice(start_date, end_date))
     clm.attrs["tz"] = "UTC"
