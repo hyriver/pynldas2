@@ -116,9 +116,25 @@ Features
 --------
 
 PyNLDAS2 is a part of `HyRiver <https://github.com/hyriver/HyRiver>`__ software stack that
-is designed to aid in hydroclimate analysis through web services.
+is designed to aid in hydroclimate analysis through web services. This package
+provides access `NLDAS-2 Forcing dataset <https://ldas.gsfc.nasa.gov/nldas/v2/forcing>`__
+via `Hydrology Data Rods <https://disc.gsfc.nasa.gov/information/tools?title=Hydrology+Data+Rods>`__.
+Currently, only hourly data is supported. There are three main functions:
 
-You can control the request/response caching behavior and verbosity of the package
+- ``get_bycoords``: Forcing data for a list of coordinates as a ``pandas.DataFrame`` or
+  ``xarray.Dataset``,
+- ``get_bygeom``: Forcing data within a geometry as a ``xarray.Dataset``,
+- ``get_grid_mask``: NLDAS2
+  `land/water grid mask <https://ldas.gsfc.nasa.gov/nldas/specifications>`__
+  as a ``xarray.Dataset``.
+
+PyNLDAS2 only provides access to the daily NLDAS2 dataset, so if you need to access
+other NASA climate datasets you can check out
+`tsgettoolbox <https://pypi.org/project/tsgettoolbox/>`__ developed by
+`Time Cera <https://github.com/timcera>`__.
+
+PyNLDAS2 uses AsyncRetriever for requesting data from the NLDAS web service efficiently
+and reliably. You can control the request/response caching behavior and its verbosity
 by setting the following environment variables:
 
 * ``HYRIVER_CACHE_NAME``: Path to the caching SQLite database. It defaults to
@@ -186,8 +202,40 @@ using `Conda <https://docs.conda.io/en/latest/>`__:
 Quick start
 -----------
 
-.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/ndvi.png
-    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/async.ipunb
+The NLDAS2 database provides forcing data at 1/8th-degree grid spacing and range
+from 01 Jan 1979 to present. Let's take a look at NLDAS2 grid mask that includes
+land, water, soil, and vegetation masks:
+
+
+.. code-block:: python
+
+    import pynldas2 as nldas
+
+    grid = nldas.get_grid_mask()
+
+.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/nldas_grid.png
+    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/nldas.ipunb
+
+Next, we use `PyGeoHydro <https://github.com/hyriver/pygeohydro>`__ to get the
+geometry of a HUC8 with ID of 1306003, then we get the forcing data within the
+obtained geometry.
+
+.. code-block:: python
+
+    from pygeohydro import WBD
+
+    huc8 = WBD("huc8")
+    geometry = huc8.byids("huc8", "13060003").geometry[0]
+    clm = nldas.get_bygeom(geometry, "2010-01-01", "2010-01-31", 4326)
+
+.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/nldas_hum.png
+    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/nldas.ipunb
+
+Road Map
+--------
+
+- [ ] Add PET calculation functions similar to
+  `PyDaymet <https://github.com/hyriver/pydaymet>`__ but at daily timescale.
 
 Contributing
 ------------
