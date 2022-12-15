@@ -236,6 +236,7 @@ Road Map
 
 - [ ] Add PET calculation functions similar to
   `PyDaymet <https://github.com/hyriver/pydaymet>`__ but at daily timescale.
+- [ ] Add a command line interfaces.
 
 Contributing
 ------------
