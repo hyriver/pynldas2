@@ -1,0 +1,61 @@
+[build-system]
+requires = [
+    "setuptools>=42",
+    "wheel",
+    "setuptools_scm[toml]>=3.4",
+    "setuptools_scm_git_archive",
+]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools_scm]
+fallback_version = "999"
+
+[tool.pytest.ini_options]
+addopts = "--ignore=noxfile.py -n=auto -v --cov=pynldas2 --cov-report xml --durations=5"
+doctest_optionflags = 'NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL NUMBER'
+testpaths = [
+    "tests",
+    "pynldas2",
+]
+filterwarnings =[
+    "ignore:.*distutils.*",
+    "ignore:.*--rsyncdir command line argument.*",
+]
+
+[tool.mypy]
+strict = true
+check_untyped_defs = true
+allow_untyped_calls = true
+warn_unreachable = true
+warn_unused_configs = true
+warn_unused_ignores = true
+pretty = true
+show_column_numbers = true
+show_error_codes = true
+show_error_context = true
+
+[tool.isort]
+profile = "black"
+default_section = "THIRDPARTY"
+known_first_party = "pynldas2"
+multi_line_output = 3
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+line_length = 100
+
+[tool.pycln]
+path = "pynldas2"
+exclude = "test_.*"
+expand_stars = true
+verbose = true
+all = true
+no_gitignore = false
+
+[tool.black]
+line-length = 100
+target-version = ["py310"]
+
+[tool.refurb]
+quiet = true
+python_version = "3.10"

@@ -1,0 +1,197 @@
+.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/async_logo.png
+    :target: https://github.com/hyriver/HyRiver
+
+|
+
+.. image:: https://joss.theoj.org/papers/b0df2f6192f0a18b9e622a3edff52e77/status.svg
+    :target: https://joss.theoj.org/papers/b0df2f6192f0a18b9e622a3edff52e77
+    :alt: JOSS
+
+|
+
+.. |pygeohydro| image:: https://github.com/hyriver/pygeohydro/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/pygeohydro/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |pygeoogc| image:: https://github.com/hyriver/pygeoogc/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/pygeoogc/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |pygeoutils| image:: https://github.com/hyriver/pygeoutils/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/pygeoutils/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |pynhd| image:: https://github.com/hyriver/pynhd/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/pynhd/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |py3dep| image:: https://github.com/hyriver/py3dep/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/py3dep/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |pydaymet| image:: https://github.com/hyriver/pydaymet/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/pydaymet/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |pynldas2| image:: https://github.com/hyriver/pynldas2/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/pynldas2/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |async| image:: https://github.com/hyriver/async-retriever/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/async-retriever/actions/workflows/test.yml
+    :alt: Github Actions
+
+.. |signatures| image:: https://github.com/hyriver/hydrosignatures/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/hydrosignatures/actions/workflows/test.yml
+    :alt: Github Actions
+
+================ ==================================================================== ============
+Package          Description                                                          Status
+================ ==================================================================== ============
+PyNHD_           Navigate and subset NHDPlus (MR and HR) using web services           |pynhd|
+Py3DEP_          Access topographic data through National Map's 3DEP web service      |py3dep|
+PyGeoHydro_      Access NWIS, NID, WQP, HCDN 2009, NLCD, CAMELS, and SSEBop databases |pygeohydro|
+PyDaymet_        Access daily, monthly, and annual climate data via Daymet            |pydaymet|
+PyNLDAS2_        Access hourly NLDAS-2 data via web services                          |pynldas2|
+HydroSignatures_ A collection of tools for computing hydrological signatures          |signatures|
+AsyncRetriever_  High-level API for asynchronous requests with persistent caching     |async|
+PyGeoOGC_        Send queries to any ArcGIS RESTful-, WMS-, and WFS-based services    |pygeoogc|
+PyGeoUtils_      Utilities for manipulating geospatial, (Geo)JSON, and (Geo)TIFF data |pygeoutils|
+================ ==================================================================== ============
+
+.. _PyGeoHydro: https://github.com/hyriver/pygeohydro
+.. _AsyncRetriever: https://github.com/hyriver/async-retriever
+.. _PyGeoOGC: https://github.com/hyriver/pygeoogc
+.. _PyGeoUtils: https://github.com/hyriver/pygeoutils
+.. _PyNHD : https://github.com/hyriver/pynhd
+.. _Py3DEP: https://github.com/hyriver/py3dep
+.. _PyDaymet: https://github.com/hyriver/pydaymet
+.. _PyNLDAS2: https://github.com/hyriver/pynldas2
+.. _HydroSignatures: https://github.com/hyriver/hydrosignatures
+
+PyNLDAS2: Hourly NLDAS-2 Data
+-----------------------------
+
+.. image:: https://img.shields.io/pypi/v/pynldas2.svg
+    :target: https://pypi.python.org/pypi/pynldas2
+    :alt: PyPi
+
+.. image:: https://img.shields.io/conda/vn/conda-forge/pynldas2.svg
+    :target: https://anaconda.org/conda-forge/pynldas2
+    :alt: Conda Version
+
+.. image:: https://codecov.io/gh/hyriver/pynldas2/branch/main/graph/badge.svg
+    :target: https://codecov.io/gh/hyriver/pynldas2
+    :alt: CodeCov
+
+.. image:: https://img.shields.io/pypi/pyversions/pynldas2.svg
+    :target: https://pypi.python.org/pypi/pynldas2
+    :alt: Python Versions
+
+.. image:: https://github.com/hyriver/pynldas2/actions/workflows/test.yml/badge.svg
+    :target: https://github.com/hyriver/pynldas2/actions/workflows/test.yml
+    :alt: Github Actions
+
+|
+
+.. image:: https://img.shields.io/badge/security-bandit-green.svg
+    :target: https://github.com/PyCQA/bandit
+    :alt: Security Status
+
+.. image:: https://www.codefactor.io/repository/github/hyriver/pynldas2/badge
+   :target: https://www.codefactor.io/repository/github/hyriver/pynldas2
+   :alt: CodeFactor
+
+.. image:: https://img.shields.io/badge/code%20style-black-000000.svg
+    :target: https://github.com/psf/black
+    :alt: black
+
+.. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
+    :target: https://github.com/pre-commit/pre-commit
+    :alt: pre-commit
+
+|
+
+Features
+--------
+
+PyNLDAS2 is a part of `HyRiver <https://github.com/hyriver/HyRiver>`__ software stack that
+is designed to aid in hydroclimate analysis through web services.
+
+You can control the request/response caching behavior and verbosity of the package
+by setting the following environment variables:
+
+* ``HYRIVER_CACHE_NAME``: Path to the caching SQLite database. It defaults to
+  ``./cache/aiohttp_cache.sqlite``
+* ``HYRIVER_CACHE_EXPIRE``: Expiration time for cached requests in seconds. It defaults to
+  -1 (never expire).
+* ``HYRIVER_CACHE_DISABLE``: Disable reading/writing from/to the cache. The default is false.
+* ``HYRIVER_VERBOSE``: Enable verbose mode. The default is false.
+
+For example, in your code before making any requests you can do:
+
+.. code-block:: python
+
+    import os
+
+    os.environ["HYRIVER_CACHE_NAME"] = "path/to/file.sqlite"
+    os.environ["HYRIVER_CACHE_EXPIRE"] = "3600"
+    os.environ["HYRIVER_CACHE_DISABLE"] = "true"
+    os.environ["HYRIVER_VERBOSE"] = "true"
+
+You can find some example notebooks `here <https://github.com/hyriver/HyRiver-examples>`__.
+
+You can also try using PyNLDAS2 without installing
+it on your system by clicking on the binder badge. A Jupyter Lab
+instance with the HyRiver stack pre-installed will be launched in your web browser, and you
+can start coding!
+
+Moreover, requests for additional functionalities can be submitted via
+`issue tracker <https://github.com/hyriver/pynldas2/issues>`__.
+
+Citation
+--------
+If you use any of HyRiver packages in your research, we appreciate citations:
+
+.. code-block:: bibtex
+
+    @article{Chegini_2021,
+        author = {Chegini, Taher and Li, Hong-Yi and Leung, L. Ruby},
+        doi = {10.21105/joss.03175},
+        journal = {Journal of Open Source Software},
+        month = {10},
+        number = {66},
+        pages = {1--3},
+        title = {{HyRiver: Hydroclimate Data Retriever}},
+        volume = {6},
+        year = {2021}
+    }
+
+Installation
+------------
+
+You can install ``pynldas2`` using ``pip``:
+
+.. code-block:: console
+
+    $ pip install pynldas2
+
+Alternatively, ``pynldas2`` can be installed from the ``conda-forge`` repository
+using `Conda <https://docs.conda.io/en/latest/>`__:
+
+.. code-block:: console
+
+    $ conda install -c conda-forge pynldas2
+
+Quick start
+-----------
+
+.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/ndvi.png
+    :target: https://github.com/hyriver/HyRiver-examples/blob/main/notebooks/async.ipunb
+
+Contributing
+------------
+
+Contributions are appreciated and very welcomed. Please read
+`CONTRIBUTING.rst <https://github.com/hyriver/pynldas2/blob/main/CONTRIBUTING.rst>`__
+for instructions.
