@@ -234,11 +234,9 @@ obtained geometry.
 Road Map
 --------
 
-.. task-list::
-
-    - [ ] Add PET calculation functions similar to
-    `PyDaymet <https://github.com/hyriver/pydaymet>`__ but at daily timescale.
-    - [ ] Add a command line interfaces.
+- [ ] Add PET calculation functions similar to 
+  `PyDaymet <https://github.com/hyriver/pydaymet>`__ but at daily timescale.
+- [ ] Add a command line interfaces.
 
 Contributing
 ------------
