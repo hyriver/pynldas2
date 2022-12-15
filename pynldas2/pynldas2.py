@@ -23,8 +23,6 @@ if TYPE_CHECKING:
 
 CRSTYPE = Union[int, str, pyproj.CRS]
 URL = "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi"
-__all__ = ["get_bycoords", "get_bygeom"]
-
 NLDAS_VARS = {
     "prcp": {"nldas_name": "APCPsfc", "long_name": "Precipitation hourly total", "units": "mm"},
     "pet": {"nldas_name": "PEVAPsfc", "long_name": "Potential evaporation", "units": "mm"},
@@ -55,6 +53,8 @@ NLDAS_VARS = {
         "units": "kg/kg",
     },
 }
+
+__all__ = ["get_bycoords", "get_grid_mask", "get_bygeom"]
 
 
 def get_byloc(
@@ -145,13 +145,35 @@ def get_byloc(
     return clm.loc[start_date:end_date]  # type: ignore[misc]
 
 
+def _get_lon_lat(
+    coords: list[tuple[float, float]] | tuple[float, float],
+    crs: CRSTYPE = 4326,
+) -> tuple[list[float], list[float]]:
+    """Get longitude and latitude from a list of coordinates."""
+    if not isinstance(coords, list) and not (isinstance(coords, tuple) and len(coords) == 2):
+        raise InputTypeError("coords", "tuple of len 2 or a list of them")
+
+    coords_list = coords if isinstance(coords, list) else [coords]
+    if any(not (isinstance(c, tuple) and len(c) == 2) for c in coords_list):
+        raise InputTypeError("coords", "tuple of len 2 or a list of them")
+
+    xx, yy = zip(*coords_list)
+    if pyproj.CRS(crs) == pyproj.CRS(4326):
+        return list(xx), list(yy)
+
+    project = pyproj.Transformer.from_crs(crs, 4326, always_xy=True).transform
+    lons, lats = project(xx, yy)
+    return list(lons), list(lats)
+
+
 def get_bycoords(
     coords: list[tuple[float, float]],
     start_date: str,
     end_date: str,
+    crs: CRSTYPE = 4326,
     variables: str | list[str] | None = None,
     to_xarray: bool = False,
-) -> pd.DataFrame:
+) -> pd.DataFrame | xr.Dataset:
     """Get NLDAS climate forcing data for a list of coordinates.
 
     Parameters
@@ -162,6 +184,8 @@ def get_bycoords(
         Start date of the data.
     end_date : str
         End date of the data.
+    crs : str, int, or pyproj.CRS, optional
+        The CRS of the input coordinates, defaults to ``EPSG:4326``.
     variables : str or list of str, optional
         Variables to download. If None, all variables are downloaded.
         Valid variables are: ``prcp``, ``pet``, ``temp``, ``wind_u``, ``wind_v``,
@@ -174,16 +198,14 @@ def get_bycoords(
     pandas.DataFrame
         The requested data as a dataframe.
     """
-    if not isinstance(coords, list) or any(len(c) != 2 for c in coords):
-        raise InputTypeError("coords", "list of tuples of length 2", "[(lon, lat), ...]")
+    lons, lats = _get_lon_lat(coords, crs)
 
-    lons, lats = zip(*coords)
     bounds = (-125.0, 25.0, -67.0, 53.0)
-    pts = hgu.Coordinates(lons, lats, bounds)
-    coords_val = list(zip(pts.points.x, pts.points.y))
-    if len(coords_val) != len(coords):
+    points = hgu.Coordinates(lons, lats, bounds).points
+    if len(points) == 0:
         raise InputRangeError("coords", f"{bounds}")
 
+    coords_val = list(zip(points.x, points.y))
     nldas = functools.partial(
         get_byloc, variables=variables, start_date=start_date, end_date=end_date
     )
@@ -201,10 +223,27 @@ def get_bycoords(
         for v in clm_ds.data_vars:
             clm_ds[v].attrs = NLDAS_VARS[v]
         return clm_ds
+    return clm
+
+
+def get_grid_mask():
+    """Get the NLDAS2 grid that contains the land/water/soil/vegetation mask."""
+    url = "/".join(
+        (
+            "https://ldas.gsfc.nasa.gov/sites/default",
+            "files/ldas/nldas/NLDAS_masks-veg-soil.nc4",
+        )
+    )
+    resp = ar.retrieve_binary([url])
+    grid = xr.open_dataset(BytesIO(resp[0]), engine="h5netcdf")
+    grid = grid.rio.write_transform()
+    grid = grid.rio.write_crs(4326)
+    grid = grid.rio.write_coordinate_system()
+    return grid
 
 
 def get_bygeom(
-    geometry: Polygon | MultiPolygon,
+    geometry: Polygon | MultiPolygon | tuple[float, float, float, float],
     start_date: str,
     end_date: str,
     geo_crs: CRSTYPE,
@@ -214,8 +253,8 @@ def get_bygeom(
 
     Parameters
     ----------
-    geometry : shapely.Polygon, shapely.MultiPolygon
-        Input geometry.
+    geometry : shapely.Polygon, shapely.MultiPolygon, or tuple of length 4
+        Input polygon or a bounding box like so (xmin, ymin, xmax, ymax).
     start_date : str
         Start date of the data.
     end_date : str
@@ -250,15 +289,7 @@ def get_bygeom(
     dates = pd.date_range(start, end, freq="10000D").tolist()
     dates = dates + [end] if dates[-1] < end else dates
 
-    url = "/".join(
-        (
-            "https://ldas.gsfc.nasa.gov/sites/default",
-            "files/ldas/nldas/NLDAS_masks-veg-soil.nc4",
-        )
-    )
-    resp = ar.retrieve_binary([url])
-    nldas_grid = xr.open_dataset(BytesIO(resp[0]))
-    nldas_grid = nldas_grid.rio.write_crs(4326)
+    nldas_grid = get_grid_mask()
     geom = hgu.geo2polygon(geometry, geo_crs, nldas_grid.rio.crs)
     msk = nldas_grid.CONUS_mask.rio.clip([geom], all_touched=True)
     coords = itertools.product(msk.get_index("lon"), msk.get_index("lat"))
@@ -305,4 +336,6 @@ def get_bygeom(
     clm = clm.rio.write_transform()
     clm = clm.rio.write_crs(4326)
     clm = clm.rio.write_coordinate_system()
-    return clm
+    if isinstance(geometry, (list, tuple)):
+        return clm
+    return hgu.xarray_geomask(clm, geometry, geo_crs, all_touched=True)
