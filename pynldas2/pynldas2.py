@@ -53,7 +53,8 @@ NLDAS_VARS = {
         "units": "kg/kg",
     },
 }
-
+DATE_COL = "Date&Time"
+DATE_FMT = "%Y-%m-%dT%H"
 __all__ = ["get_bycoords", "get_grid_mask", "get_bygeom"]
 
 
@@ -66,8 +67,8 @@ def _txt2df(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> pd
     except UFuncTypeError as ex:
         msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
         raise NLDASServiceError(msg) from ex
-    data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
-    data = data.drop(columns="Date&Time")
+    data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
+    data = data.drop(columns=DATE_COL)
     data.index.freq = data.index.inferred_freq
     data = data["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
@@ -86,6 +87,8 @@ def _check_inputs(
         raise InputRangeError("start_date", "1979-01-01 to yesterday")
     if end > pd.Timestamp.now() - pd.Timedelta("1D"):
         raise InputRangeError("end_date", "1979-01-01 to yesterday")
+    if end <= start:
+        raise InputRangeError("end_date", "after start_date")
 
     dates = pd.date_range(start, end, freq="10000D").tolist()
     dates = dates + [end] if dates[-1] < end else dates
@@ -93,10 +96,10 @@ def _check_inputs(
     if variables is None:
         clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
     else:
-        clm_vars = list(variables) if isinstance(variables, list) else [variables]
-        if any(v not in NLDAS_VARS for v in variables):
+        clm_vars = [variables] if isinstance(variables, str) else list(variables)
+        if any(v not in NLDAS_VARS for v in clm_vars):
             raise InputValueError("variables", list(NLDAS_VARS))
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{NLDAS_VARS[v]['nldas_name']}" for v in variables]
+        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{NLDAS_VARS[v]['nldas_name']}" for v in clm_vars]
 
     return dates, clm_vars
 
@@ -137,8 +140,8 @@ def get_byloc(
                 "type": "asc2",
                 "location": f"GEOM:POINT({lon}, {lat})",
                 "variable": v,
-                "startDate": s.strftime("%Y-%m-%dT%H"),
-                "endDate": e.strftime("%Y-%m-%dT%H"),
+                "startDate": s.strftime(DATE_FMT),
+                "endDate": e.strftime(DATE_FMT),
             }
         }
         for (s, e), v in itertools.product(zip(dates[:-1], dates[1:]), clm_vars)
@@ -164,11 +167,11 @@ def _get_lon_lat(
 ) -> tuple[list[float], list[float]]:
     """Get longitude and latitude from a list of coordinates."""
     if not isinstance(coords, list) and not (isinstance(coords, tuple) and len(coords) == 2):
-        raise InputTypeError("coords", "tuple of len 2 or a list of them")
+        raise InputTypeError("coords", "tuple of length 2 or a list of them")
 
     coords_list = coords if isinstance(coords, list) else [coords]
     if any(not (isinstance(c, tuple) and len(c) == 2) for c in coords_list):
-        raise InputTypeError("coords", "tuple of len 2 or a list of them")
+        raise InputTypeError("coords", "tuple of length 2 or a list of them")
 
     xx, yy = zip(*coords_list)
     if pyproj.CRS(crs) == pyproj.CRS(4326):
@@ -264,7 +267,7 @@ def _txt2da(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> xr
     except UFuncTypeError as ex:
         msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
         raise NLDASServiceError(msg) from ex
-    data.index = pd.to_datetime(data.index + " " + data["Date&Time"])
+    data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
     data = data["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
     data.index.name = "time"
@@ -317,8 +320,8 @@ def get_bygeom(
                 "type": "asc2",
                 "location": f"GEOM:POINT({lon}, {lat})",
                 "variable": v,
-                "startDate": s.strftime("%Y-%m-%dT%H"),
-                "endDate": e.strftime("%Y-%m-%dT%H"),
+                "startDate": s.strftime(DATE_FMT),
+                "endDate": e.strftime(DATE_FMT),
             }
         }
         for (lon, lat), (s, e), v in itertools.product(coords, zip(dates[:-1], dates[1:]), clm_vars)
