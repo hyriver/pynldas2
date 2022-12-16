@@ -1,4 +1,4 @@
-.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/async_logo.png
+.. image:: https://raw.githubusercontent.com/hyriver/HyRiver-examples/main/notebooks/_static/pynldas2_logo.png
     :target: https://github.com/hyriver/HyRiver
 
 |
@@ -69,8 +69,8 @@ PyGeoUtils_      Utilities for manipulating geospatial, (Geo)JSON, and (Geo)TIFF
 .. _PyNLDAS2: https://github.com/hyriver/pynldas2
 .. _HydroSignatures: https://github.com/hyriver/hydrosignatures
 
-PyNLDAS2: Hourly NLDAS-2 Data
------------------------------
+PyNLDAS2: Hourly NLDAS-2 Forcing Data
+-------------------------------------
 
 .. image:: https://img.shields.io/pypi/v/pynldas2.svg
     :target: https://pypi.python.org/pypi/pynldas2
