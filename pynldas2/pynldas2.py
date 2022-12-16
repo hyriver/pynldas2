@@ -62,12 +62,13 @@ def _txt2df(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> pd
     """Convert text to dataframe."""
     try:
         data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+        data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
     except EmptyDataError:
         return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
     except UFuncTypeError as ex:
         msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
         raise NLDASServiceError(msg) from ex
-    data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
+
     data = data.drop(columns=DATE_COL)
     data.index.freq = data.index.inferred_freq
     data = data["Data"]
@@ -262,12 +263,13 @@ def _txt2da(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> xr
     """Convert text to dataarray."""
     try:
         data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+        data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
     except EmptyDataError:
         return xr.DataArray(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
     except UFuncTypeError as ex:
         msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
         raise NLDASServiceError(msg) from ex
-    data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
+
     data = data["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
     data.index.name = "time"
