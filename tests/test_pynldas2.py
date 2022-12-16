@@ -28,15 +28,19 @@ def test_coords():
 
 
 def test_coords_xr():
-    clm = nldas.get_bycoords(COORDS, START, END, ALT_CRS, VAR, True)
+    clm = nldas.get_bycoords(COORDS, START, END, ALT_CRS, "prcp", True)
     assert_close(clm.prcp.mean(), 0.0051)
-    assert_close(clm.pet.mean(), 0.1346)
 
 
 def test_geom():
     clm = nldas.get_bygeom(GEOM, START, END, DEF_CRS, VAR)
     assert_close(clm.prcp.mean(), 0.1534)
     assert_close(clm.pet.mean(), 0.0418)
+
+
+def test_geom_box():
+    clm = nldas.get_bygeom(GEOM.bounds, START, END, DEF_CRS, "prcp")
+    assert_close(clm.prcp.mean(), 0.1534)
 
 
 def test_show_versions():
