@@ -21,6 +21,7 @@ jobs:
     name: python ${{ matrix.python-version }}, ${{ matrix.os }}
     runs-on: ${{ matrix.os }}
     env:
+      GH_CI: 1
       REPO_NAME: ${{ github.event.repository.name }}
     defaults:
       run:
