@@ -154,4 +154,5 @@ dependencies:
     - git+https://github.com/hyriver/pynhd.git
     - git+https://github.com/hyriver/py3dep.git
     - git+https://github.com/hyriver/pydaymet.git
+    - git+https://github.com/hyriver/pynldas2.git
     - git+https://github.com/hyriver/pygeohydro.git
