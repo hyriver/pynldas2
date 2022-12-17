@@ -256,7 +256,7 @@ def get_bycoords(
 
 def get_grid_mask():
     """Get the NLDAS2 grid that contains the land/water/soil/vegetation mask.
-    
+
     Returns
     -------
     xarray.Dataset
