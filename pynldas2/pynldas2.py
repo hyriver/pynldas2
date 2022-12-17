@@ -111,6 +111,7 @@ def get_byloc(
     start_date: str,
     end_date: str,
     variables: str | list[str] | None = None,
+    n_conn: int = 4,
 ) -> pd.DataFrame:
     """Get NLDAS climate forcing data for a single location.
 
@@ -128,6 +129,10 @@ def get_byloc(
         Variables to download. If None, all variables are downloaded.
         Valid variables are: ``prcp``, ``pet``, ``temp``, ``wind_u``, ``wind_v``,
         ``rlds``, ``rsds``, and ``humidity``.
+    n_conn : int, optional
+        Number of parallel connections to use for retrieving data, defaults to 4.
+        The maximum number of connections is 4, if more than 4 are requested, 4
+        connections will be used.
 
     Returns
     -------
@@ -148,7 +153,8 @@ def get_byloc(
         for (s, e), v in itertools.product(zip(dates[:-1], dates[1:]), clm_vars)
     ]
 
-    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
+    n_conn = min(n_conn, 4)
+    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
 
     clm_list = (_txt2df(txt, i, kwds) for i, txt in enumerate(resp))
     clm_merged = (
@@ -190,6 +196,7 @@ def get_bycoords(
     crs: CRSTYPE = 4326,
     variables: str | list[str] | None = None,
     to_xarray: bool = False,
+    n_conn: int = 4,
 ) -> pd.DataFrame | xr.Dataset:
     """Get NLDAS climate forcing data for a list of coordinates.
 
@@ -209,6 +216,10 @@ def get_bycoords(
         ``rlds``, ``rsds``, and ``humidity``.
     to_xarray : bool, optional
         If True, the data is returned as an xarray dataset.
+    n_conn : int, optional
+        Number of parallel connections to use for retrieving data, defaults to 4.
+        The maximum number of connections is 4, if more than 4 are requested, 4
+        connections will be used.
 
     Returns
     -------
@@ -224,7 +235,7 @@ def get_bycoords(
 
     coords_val = list(zip(points.x, points.y))
     nldas = functools.partial(
-        get_byloc, variables=variables, start_date=start_date, end_date=end_date
+        get_byloc, variables=variables, start_date=start_date, end_date=end_date, n_conn=n_conn
     )
     clm = pd.concat(
         (nldas(lon=lon, lat=lat) for lon, lat in coords_val),
@@ -287,6 +298,7 @@ def get_bygeom(
     end_date: str,
     geo_crs: CRSTYPE,
     variables: str | list[str] | None = None,
+    n_conn: int = 4,
 ) -> xr.Dataset:
     """Get hourly NLDAS climate forcing within a geometry at 0.125 resolution.
 
@@ -304,6 +316,9 @@ def get_bygeom(
         Variables to download. If None, all variables are downloaded.
         Valid variables are: ``prcp``, ``pet``, ``temp``, ``wind_u``, ``wind_v``,
         ``rlds``, ``rsds``, and ``humidity``.
+    n_conn : int, optional
+        Number of parallel connections to use for retrieving data, defaults to 4.
+        It should be less than 4.
 
     Returns
     -------
@@ -328,7 +343,9 @@ def get_bygeom(
         }
         for (lon, lat), (s, e), v in itertools.product(coords, zip(dates[:-1], dates[1:]), clm_vars)
     ]
-    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=4)
+
+    n_conn = min(n_conn, 4)
+    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
 
     clm = xr.merge(_txt2da(txt, i, kwds) for i, txt in enumerate(resp))
     clm = clm.rename({d["nldas_name"]: n for n, d in NLDAS_VARS.items() if d["nldas_name"] in clm})
