@@ -131,7 +131,7 @@ Currently, only hourly data is supported. There are three main functions:
 PyNLDAS2 only provides access to the daily NLDAS2 dataset, so if you need to access
 other NASA climate datasets you can check out
 `tsgettoolbox <https://pypi.org/project/tsgettoolbox/>`__ developed by
-`Time Cera <https://github.com/timcera>`__.
+`Tim Cera <https://github.com/timcera>`__.
 
 PyNLDAS2 uses AsyncRetriever for requesting data from the NLDAS web service efficiently
 and reliably. You can control the request/response caching behavior and its verbosity
