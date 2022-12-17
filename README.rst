@@ -63,7 +63,7 @@ PyGeoUtils_      Utilities for manipulating geospatial, (Geo)JSON, and (Geo)TIFF
 .. _AsyncRetriever: https://github.com/hyriver/async-retriever
 .. _PyGeoOGC: https://github.com/hyriver/pygeoogc
 .. _PyGeoUtils: https://github.com/hyriver/pygeoutils
-.. _PyNHD : https://github.com/hyriver/pynhd
+.. _PyNHD: https://github.com/hyriver/pynhd
 .. _Py3DEP: https://github.com/hyriver/py3dep
 .. _PyDaymet: https://github.com/hyriver/pydaymet
 .. _PyNLDAS2: https://github.com/hyriver/pynldas2
