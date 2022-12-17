@@ -255,7 +255,13 @@ def get_bycoords(
 
 
 def get_grid_mask():
-    """Get the NLDAS2 grid that contains the land/water/soil/vegetation mask."""
+    """Get the NLDAS2 grid that contains the land/water/soil/vegetation mask.
+    
+    Returns
+    -------
+    xarray.Dataset
+        The grid mask.
+    """
     url = "/".join(
         (
             "https://ldas.gsfc.nasa.gov/sites/default",
