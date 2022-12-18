@@ -53,5 +53,3 @@ exclude = [
     "**/__pycache__",
     "tests/",
 ]
-venvPath = "/Users/tchegini/.local/apps/mambaforge/envs"
-venv = "hyriver-dev"
