@@ -41,7 +41,7 @@ repos:
       name: Sort top level statements with ssort
 
   - repo: https://github.com/PyCQA/isort
-    rev: 5.11.2
+    rev: v5.11.3
     hooks:
     - id: isort
       name: Sort imports with isort
@@ -117,12 +117,6 @@ repos:
       name: Modernizing Python codebases using Refurb
       additional_dependencies:
       - numpy
-
-  - repo: https://github.com/RobertCraigie/pyright-python
-    rev: v1.1.284
-    hooks:
-    - id: pyright
-      name: Type checking with pyright
 
   - repo: https://github.com/PyCQA/bandit
     rev: 1.7.4
