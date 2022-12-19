@@ -128,7 +128,7 @@ Currently, only hourly data is supported. There are three main functions:
   `land/water grid mask <https://ldas.gsfc.nasa.gov/nldas/specifications>`__
   as a ``xarray.Dataset``.
 
-PyNLDAS2 only provides access to the daily NLDAS2 dataset, so if you need to access
+PyNLDAS2 only provides access to the hourly NLDAS2 dataset, so if you need to access
 other NASA climate datasets you can check out
 `tsgettoolbox <https://pypi.org/project/tsgettoolbox/>`__ developed by
 `Tim Cera <https://github.com/timcera>`__.
