@@ -6,17 +6,18 @@ from pathlib import Path
 import nox
 
 
-def get_package_name()-> str:
+def get_package_name() -> str:
     """Get the name of the package."""
     config = configparser.RawConfigParser()
     config.read("setup.cfg")
     return config.get("metadata", "name")
 
 
-python_versions = ["3.10"]
+python_versions = ["3.8"]
 package = get_package_name()
 gh_deps = {
-    "async-retriever": [],
+    "async_retriever": [],
+    "hydrosignatures": [],
     "pygeoogc": ["async-retriever"],
     "pygeoutils": ["async-retriever", "pygeoogc"],
     "pynhd": ["async-retriever", "pygeoogc", "pygeoutils"],
@@ -33,7 +34,7 @@ nox.options.sessions = (
 )
 
 
-def install_deps(session: nox.Session, extra=None)-> None:
+def install_deps(session: nox.Session, extra=None) -> None:
     """Install package dependencies."""
     deps = [f".[{extra}]"] if extra else ["."]
     deps += [f"git+https://github.com/hyriver/{p}.git" for p in gh_deps[package]]
@@ -48,7 +49,7 @@ def install_deps(session: nox.Session, extra=None)-> None:
             shutil.rmtree(f, ignore_errors=True)
 
 
-def activate_virtualenv_in_precommit_hooks(session: nox.Session)-> None:
+def activate_virtualenv_in_precommit_hooks(session: nox.Session) -> None:
     """Activate virtualenv in hooks installed by pre-commit.
 
     This function patches git hooks installed by pre-commit to activate the
@@ -110,7 +111,7 @@ def pre_commit(session: nox.Session) -> None:
 
 
 @nox.session(name="type-check", python="3.10")
-def type_check(session: nox.Session)-> None:
+def type_check(session: nox.Session) -> None:
     "Run Pyright."
     install_deps(session)
     session.install("pyright")
@@ -118,7 +119,7 @@ def type_check(session: nox.Session)-> None:
 
 
 @nox.session(python=python_versions)
-def tests(session: nox.Session)-> None:
+def tests(session: nox.Session) -> None:
     """Run the test suite."""
     install_deps(session, "test")
 
@@ -128,7 +129,7 @@ def tests(session: nox.Session)-> None:
 
 
 @nox.session(python=python_versions)
-def typeguard(session: nox.Session)-> None:
+def typeguard(session: nox.Session) -> None:
     """Runtime type checking using Typeguard."""
     install_deps(session, "typeguard")
 
