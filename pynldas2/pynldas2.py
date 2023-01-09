@@ -11,7 +11,7 @@ import async_retriever as ar
 import pandas as pd
 import pygeoutils as hgu
 import pyproj
-import rioxarray  # noqa: F401
+import rioxarray  # pyright: reportUnusedImport=false
 import xarray as xr
 from numpy.core._exceptions import UFuncTypeError
 from pandas.errors import EmptyDataError
