@@ -8,6 +8,81 @@ requires = [
 [tool.setuptools_scm]
 fallback_version = "999"
 
+[project]
+name = "pynldas2"
+description = "Get NLDAS2 forcing data."
+authors = [{name = "Taher Chegini", email = "cheginit@gmail.com"}]
+license = {text = "MIT"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
+    "Programming Language :: Python",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3 :: Only",
+    "Programming Language :: Python :: 3.8",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Topic :: Scientific/Engineering",
+    "Topic :: Scientific/Engineering :: Atmospheric Science",
+    "Topic :: Scientific/Engineering :: GIS",
+    "Topic :: Scientific/Engineering :: Hydrology",
+    "Typing :: Typed",
+]
+requires-python = ">=3.8"
+dependencies = [
+    "async-retriever>=0.3.6",
+    "h5netcdf",
+    "numpy>=1.17",
+    "pandas>=1.0",
+    "pygeoutils>=0.13.10",
+    "pyproj>=2.2",
+    "rioxarray>=0.11",
+    "xarray>=2022.03.0",
+]
+dynamic = ["version"]
+
+[project.readme]
+file = "README.rst"
+content-type = "text/x-rst"
+
+[project.urls]
+Homepage = "https://docs.hyriver.io/readme/pynldas2.html"
+Issues = "https://github.com/hyriver/pynldas2/issues"
+CI = "https://github.com/hyriver/pynldas2/actions"
+Changelog = "https://docs.hyriver.io/changelogs/pynldas2.html"
+
+[project.optional-dependencies]
+test = [
+    "coverage[toml]",
+    "pytest-cov",
+    "pytest-xdist[psutil]",
+]
+typeguard = [
+    "coverage[toml]",
+    "pygments",
+    "pytest-cov",
+    "pytest-xdist[psutil]",
+    "typeguard",
+]
+
+[tool.setuptools]
+include-package-data = true
+zip-safe = false
+platforms = ["any"]
+license-files = ["LICENSE"]
+
+[tool.setuptools.packages]
+find = {namespaces = false}
+
+[tool.setuptools.package-data]
+pynldas2 = ["py.typed"]
+
+[tool.codespell]
+skip = "__pycache__,_build,.mypy_cache,.git,./htmlcov,.nox"
+
 [tool.pytest.ini_options]
 addopts = "--ignore=noxfile.py -n=auto -v --cov=pynldas2 --cov-report xml --durations=5"
 doctest_optionflags = 'NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL NUMBER'
@@ -18,7 +93,19 @@ testpaths = [
 filterwarnings =[
     "ignore:.*distutils.*",
     "ignore:.*--rsyncdir command line argument.*",
+    "ignore:.*numpy.ndarray size changed.*",
 ]
+
+[tool.coverage.run]
+branch = true
+parallel = true
+source = ['pynldas2']
+
+[tool.coverage.report]
+exclude_lines = [
+    'raise ServiceUnavailableError',
+]
+ignore_errors = true
 
 [tool.isort]
 profile = "black"
@@ -38,11 +125,11 @@ no_gitignore = false
 
 [tool.black]
 line-length = 100
-target-version = ["py310"]
+target-version = ["py38"]
 
 [tool.refurb]
 quiet = true
-python_version = "3.10"
+python_version = "3.8"
 
 [tool.pyright]
 include = ["pynldas2"]
