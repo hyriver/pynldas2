@@ -1,9 +1,9 @@
 """Top-level package."""
 from importlib.metadata import PackageNotFoundError, version
 
-from .exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
-from .print_versions import show_versions
-from .pynldas2 import get_bycoords, get_bygeom, get_grid_mask
+from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
+from pynldas2.print_versions import show_versions
+from pynldas2.pynldas2 import get_bycoords, get_bygeom, get_grid_mask
 
 try:
     __version__ = version("pynldas2")
