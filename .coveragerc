@@ -1,7 +1,0 @@
-[report]
-omit =
-    setup.py
-    tests/*
-    pynldas2/__init__.py
-    pynldas2/print_versions.py
-    .nox/*
