@@ -2,11 +2,32 @@
 build-backend = "setuptools.build_meta"
 requires = [
   "setuptools>=42",
-  "setuptools-scm>=7"
+  "setuptools-scm>=7",
 ]
 
 [project]
+name = "pynldas2"
+description = "Get NLDAS2 forcing data."
+[project.readme]
+content-type = "text/x-rst"
+file = "README.rst"
+
+license = {text = "MIT"}
 authors = [{name = "Taher Chegini", email = "cheginit@gmail.com"}]
+requires-python = ">=3.8"
+dependencies = [
+  "async-retriever>=0.3.6",
+  "h5netcdf",
+  "numpy>=1.17",
+  "pandas>=1",
+  "pygeoutils>=0.13.10",
+  "pyproj>=2.2",
+  "rioxarray>=0.11",
+  "xarray>=2022.03",
+]
+dynamic = [
+  "version",
+]
 classifiers = [
   "Development Status :: 4 - Beta",
   "Intended Audience :: Science/Research",
@@ -25,45 +46,26 @@ classifiers = [
   "Topic :: Scientific/Engineering :: Hydrology",
   "Typing :: Typed"
 ]
-dependencies = [
-  "async-retriever>=0.3.6",
-  "h5netcdf",
-  "numpy>=1.17",
-  "pandas>=1.0",
-  "pygeoutils>=0.13.10",
-  "pyproj>=2.2",
-  "rioxarray>=0.11",
-  "xarray>=2022.03.0"
-]
-description = "Get NLDAS2 forcing data."
-dynamic = ["version"]
-license = {text = "MIT"}
-name = "pynldas2"
-requires-python = ">=3.8"
-
 [project.optional-dependencies]
 test = [
   "coverage[toml]",
   "pytest-cov",
-  "pytest-xdist[psutil]"
+  "pytest-xdist[psutil]",
 ]
 typeguard = [
   "coverage[toml]",
   "pygments",
   "pytest-cov",
   "pytest-xdist[psutil]",
-  "typeguard"
+  "typeguard",
 ]
-
-[project.readme]
-content-type = "text/x-rst"
-file = "README.rst"
 
 [project.urls]
 CI = "https://github.com/hyriver/pynldas2/actions"
 Changelog = "https://docs.hyriver.io/changelogs/pynldas2.html"
 Homepage = "https://docs.hyriver.io/readme/pynldas2.html"
 Issues = "https://github.com/hyriver/pynldas2/issues"
+
 
 [tool.bandit]
 targets = [
