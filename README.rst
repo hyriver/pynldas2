@@ -88,15 +88,11 @@ PyNLDAS2: Hourly NLDAS-2 Forcing Data
     :target: https://pypi.python.org/pypi/pynldas2
     :alt: Python Versions
 
-.. image:: https://github.com/hyriver/pynldas2/actions/workflows/test.yml/badge.svg
-    :target: https://github.com/hyriver/pynldas2/actions/workflows/test.yml
-    :alt: Github Actions
+.. image:: https://pepy.tech/badge/pynhd
+    :target: https://pepy.tech/project/pynhd
+    :alt: Downloads
 
 |
-
-.. image:: https://img.shields.io/badge/security-bandit-green.svg
-    :target: https://github.com/PyCQA/bandit
-    :alt: Security Status
 
 .. image:: https://www.codefactor.io/repository/github/hyriver/pynldas2/badge
    :target: https://www.codefactor.io/repository/github/hyriver/pynldas2
@@ -109,6 +105,10 @@ PyNLDAS2: Hourly NLDAS-2 Forcing Data
 .. image:: https://img.shields.io/badge/pre--commit-enabled-brightgreen?logo=pre-commit&logoColor=white
     :target: https://github.com/pre-commit/pre-commit
     :alt: pre-commit
+
+.. image:: https://mybinder.org/badge_logo.svg
+    :target: https://mybinder.org/v2/gh/hyriver/HyRiver-examples/main?urlpath=lab/tree/notebooks
+    :alt: Binder
 
 |
 
