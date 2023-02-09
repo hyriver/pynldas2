@@ -158,13 +158,11 @@ def get_byloc(
     clm_list = (_txt2df(txt, i, kwds) for i, txt in enumerate(resp))
     clm_merged = (
         pd.concat(df)
-        for _, df in itertools.groupby(
-            sorted(clm_list, key=lambda x: x.name), lambda x: x.name  # type: ignore[no-any-return]
-        )
+        for _, df in itertools.groupby(sorted(clm_list, key=lambda x: x.name), lambda x: x.name)
     )
     clm = pd.concat(clm_merged, axis=1)
     clm = clm.rename(columns={d["nldas_name"]: n for n, d in NLDAS_VARS.items()})
-    return clm.loc[start_date:end_date]  # type: ignore[misc]
+    return clm.loc[start_date:end_date]
 
 
 def _get_lon_lat(
