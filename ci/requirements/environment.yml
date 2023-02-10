@@ -17,7 +17,6 @@ dependencies:
 - cytoolz
 - dask-core
 - geopandas >=0.7
-- loguru
 - netcdf4
 - numpy >=1.17
 - pyproj >=2.2
