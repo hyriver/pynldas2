@@ -77,7 +77,7 @@ skip = "__pycache__,_build,.mypy_cache,.git,./htmlcov,.nox"
 
 [tool.coverage.report]
 exclude_lines = [
-  'raise ServiceUnavailableError',
+  "raise NLDASServiceError",
   "if TYPE_CHECKING:"
 ]
 ignore_errors = true
