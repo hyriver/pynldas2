@@ -69,7 +69,7 @@ def _txt2df(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> pd
         raise NLDASServiceError(msg) from ex
 
     data = data.drop(columns=DATE_COL)
-    data.index.freq = data.index.inferred_freq
+    data.index.freq = pd.infer_freq(data.index)
     data = data["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
     return data
