@@ -56,24 +56,53 @@ typeguard = [
   "pytest-xdist[psutil]",
   "typeguard",
 ]
-
 [project.urls]
 CI = "https://github.com/hyriver/pynldas2/actions"
 Changelog = "https://docs.hyriver.io/changelogs/pynldas2.html"
 Homepage = "https://docs.hyriver.io/readme/pynldas2.html"
 Issues = "https://github.com/hyriver/pynldas2/issues"
 
+[tool.setuptools]
+include-package-data = true
+license-files = ["LICENSE"]
+platforms = ["any"]
+zip-safe = false
 
-[tool.bandit]
-targets = [
-  "pynhd"
-]
+[tool.setuptools.package-data]
+pynldas2 = ["py.typed"]
+
+[tool.setuptools.packages]
+find = {namespaces = false}
+
+[tool.setuptools_scm]
+fallback_version = "999"
 
 [tool.black]
 line-length = 100
 
-[tool.codespell]
-skip = "__pycache__,_build,.mypy_cache,.git,./htmlcov,.nox"
+[tool.isort]
+default_section = "THIRDPARTY"
+force_grid_wrap = 0
+include_trailing_comma = true
+known_first_party = "pynldas2"
+line_length = 100
+multi_line_output = 3
+profile = "black"
+use_parentheses = true
+
+[tool.pytest.ini_options]
+addopts = "--ignore=noxfile.py -n=auto -v --cov=pynldas2 --cov-report xml --durations=5"
+doctest_optionflags = 'NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL NUMBER'
+filterwarnings = [
+  "ignore:.*distutils.*",
+  "ignore:.*--rsyncdir command line argument.*",
+  "ignore:.*numpy.ndarray size changed.*",
+  "ignore:.*'cgi' is deprecated.*",
+]
+testpaths = [
+  "tests",
+  "pynldas2"
+]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -91,15 +120,13 @@ omit = [
 parallel = true
 source = ['pynldas2']
 
-[tool.isort]
-default_section = "THIRDPARTY"
-force_grid_wrap = 0
-include_trailing_comma = true
-known_first_party = "pynldas2"
-line_length = 100
-multi_line_output = 3
-profile = "black"
-use_parentheses = true
+[tool.bandit]
+targets = [
+  "pynhd"
+]
+
+[tool.codespell]
+skip = "__pycache__,_build,.mypy_cache,.git,./htmlcov,.nox"
 
 [tool.pycln]
 all = true
@@ -125,35 +152,6 @@ reportUnnecessaryIsInstance = false
 reportUntypedFunctionDecorator = false
 typeCheckingMode = "strict"
 
-[tool.pytest.ini_options]
-addopts = "--ignore=noxfile.py -n=auto -v --cov=pynldas2 --cov-report xml --durations=5"
-doctest_optionflags = 'NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL NUMBER'
-filterwarnings = [
-  "ignore:.*distutils.*",
-  "ignore:.*--rsyncdir command line argument.*",
-  "ignore:.*numpy.ndarray size changed.*",
-  "ignore:.*'cgi' is deprecated.*",
-]
-testpaths = [
-  "tests",
-  "pynldas2"
-]
-
 [tool.refurb]
 python_version = "3.8"
 quiet = true
-
-[tool.setuptools]
-include-package-data = true
-license-files = ["LICENSE"]
-platforms = ["any"]
-zip-safe = false
-
-[tool.setuptools.package-data]
-pynldas2 = ["py.typed"]
-
-[tool.setuptools.packages]
-find = {namespaces = false}
-
-[tool.setuptools_scm]
-fallback_version = "999"
