@@ -3,7 +3,8 @@ import io
 import os
 
 import numpy as np
-from shapely.geometry import Polygon
+import pytest
+from shapely.geometry import Point, Polygon
 
 import pynldas2 as nldas
 
@@ -43,6 +44,16 @@ def test_geom():
 def test_geom_box():
     clm = nldas.get_bygeom(GEOM.bounds, START, END, DEF_CRS, "prcp", n_conn=CONN)
     assert_close(clm.prcp.mean(), 0.1534)
+
+
+@pytest.mark.speedup
+def test_snow():
+    clm = nldas.get_bycoords((-89.6, 48.3), "2000-01-01", "2000-01-02", DEF_CRS, "prcp", snow=True)
+    assert_close(clm.snow.mean(), 0.0017)
+    clm = nldas.get_bygeom(
+        Point(-89.6, 48.3).buffer(0.05), "2000-01-01", "2000-01-02", DEF_CRS, "prcp", snow=True
+    )
+    assert_close(clm.snow.mean().compute().item(), 0.00163)
 
 
 def test_show_versions():
