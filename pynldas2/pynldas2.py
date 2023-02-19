@@ -4,10 +4,13 @@ from __future__ import annotations
 import functools
 import itertools
 import re
+import warnings
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, Union
+from typing import TYPE_CHECKING, TypeVar, Union
 
 import async_retriever as ar
+import numpy as np
+import numpy.typing as npt
 import pandas as pd
 import pygeoutils as hgu
 import pyproj
@@ -17,9 +20,38 @@ from pandas.errors import EmptyDataError
 
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
+try:
+    from numba import config as numba_config
+    from numba import njit, prange
+
+    ngjit = functools.partial(njit, cache=True, nogil=True)
+    numba_config.THREADING_LAYER = "workqueue"
+    has_numba = True
+except ImportError:
+    has_numba = False
+    prange = range
+    numba_config = None
+    njit = None
+
+    def ngjit(ntypes, parallel=None):  # type: ignore
+        def decorator_njit(func):  # type: ignore
+            @functools.wraps(func)
+            def wrapper_decorator(*args, **kwargs):  # type: ignore
+                return func(*args, **kwargs)
+
+            return wrapper_decorator
+
+        return decorator_njit
+
+
 if TYPE_CHECKING:
     from shapely.geometry import MultiPolygon, Polygon
 
+    DF = TypeVar("DF", pd.DataFrame, xr.Dataset)
+
+# Default snow params from https://doi.org/10.5194/gmd-11-1077-2018
+T_RAIN = 2.5  # degC
+T_SNOW = 0.6  # degC
 CRSTYPE = Union[int, str, pyproj.CRS]
 URL = "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi"
 NLDAS_VARS = {
@@ -57,6 +89,109 @@ DATE_FMT = "%Y-%m-%dT%H"
 __all__ = ["get_bycoords", "get_grid_mask", "get_bygeom"]
 
 
+@ngjit("f8[::1](f8[::1], f8[::1], f8, f8)")
+def _separate_snow(
+    prcp: npt.NDArray[np.float64],
+    temp: npt.NDArray[np.float64],
+    t_rain: np.float64,
+    t_snow: np.float64,
+) -> npt.NDArray[np.float64]:
+    """Separate snow in precipitation."""
+    t_rng = t_rain - t_snow
+    snow = np.zeros_like(prcp)
+
+    for t in prange(prcp.shape[0]):
+        if temp[t] > t_rain:
+            snow[t] = 0.0
+        elif temp[t] < t_snow:
+            snow[t] = prcp[t]
+        else:
+            snow[t] = prcp[t] * (t_rain - temp[t]) / t_rng
+    return snow
+
+
+def _snow_point(climate: pd.DataFrame, t_rain: float, t_snow: float) -> pd.DataFrame:
+    """Separate snow from precipitation."""
+    clm = climate.copy()
+    clm["snow"] = _separate_snow(
+        clm["prcp"].to_numpy("f8"),
+        clm["temp"].to_numpy("f8"),
+        np.float64(t_rain),
+        np.float64(t_snow),
+    )
+    return clm
+
+
+def _snow_gridded(climate: xr.Dataset, t_rain: float, t_snow: float) -> xr.Dataset:
+    """Separate snow from precipitation."""
+    clm = climate.copy().chunk({"time": -1})
+
+    def snow_func(
+        prcp: npt.NDArray[np.float64],
+        temp: npt.NDArray[np.float64],
+        t_rain: float,
+        t_snow: float,
+    ) -> npt.NDArray[np.float64]:
+        """Separate snow based on Martinez and Gupta (2010)."""
+        return _separate_snow(
+            prcp.astype("f8"),
+            temp.astype("f8"),
+            np.float64(t_rain),
+            np.float64(t_snow),
+        )
+
+    clm["snow"] = xr.apply_ufunc(
+        snow_func,
+        clm["prcp"],
+        clm["temp"],
+        t_rain,
+        t_snow,
+        input_core_dims=[["time"], ["time"], [], []],
+        output_core_dims=[["time"]],
+        vectorize=True,
+        dask="parallelized",
+        output_dtypes=[clm["prcp"].dtype],
+    ).transpose("time", "y", "x")
+    clm["snow"].attrs["units"] = "mm"
+    clm["snow"].attrs["long_name"] = "Snowfall hourly total"
+    return clm
+
+
+def separate_snow(clm: DF, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> DF:
+    """Separate snow based on :footcite:t:`Martinez_2010`.
+
+    Parameters
+    ----------
+    clm : pandas.DataFrame or xarray.Dataset
+        Climate data that should include ``prcp`` and ``temp``.
+    t_rain : float, optional
+        Threshold for temperature for considering rain, defaults to 2.5 degrees C.
+    t_snow : float, optional
+        Threshold for temperature for considering snow, defaults to 0.6 degrees C.
+
+    Returns
+    -------
+    pandas.DataFrame or xarray.Dataset
+        Input data with ``snow`` column if input is a ``pandas.DataFrame``,
+        or ``snow`` variable if input is an ``xarray.Dataset``.
+
+    References
+    ----------
+    .. footbibliography::
+    """
+    if not has_numba:
+        warnings.warn(
+            "Numba not installed. Using slow pure python version.", UserWarning, stacklevel=2
+        )
+
+    if not isinstance(clm, (pd.DataFrame, xr.Dataset)):
+        raise InputTypeError("clm", "pandas.DataFrame or xarray.Dataset")
+
+    if isinstance(clm, xr.Dataset):
+        return _snow_gridded(clm, t_rain + 273.15, t_snow)  # type: ignore
+    return _snow_point(clm, t_rain + 273.15, t_snow)
+
+
 def _txt2df(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> pd.Series:
     """Convert text to dataframe."""
     try:
@@ -79,6 +214,7 @@ def _check_inputs(
     start_date: str,
     end_date: str,
     variables: str | list[str] | None = None,
+    snow: bool = False,
 ) -> tuple[list[pd.Timestamp], list[str]]:
     """Check inputs."""
     start = pd.to_datetime(start_date)
@@ -97,6 +233,7 @@ def _check_inputs(
         clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
     else:
         clm_vars = [variables] if isinstance(variables, str) else list(variables)
+        clm_vars = clm_vars + ["temp"] if snow and "temp" not in clm_vars else clm_vars
         if any(v not in NLDAS_VARS for v in clm_vars):
             raise InputValueError("variables", list(NLDAS_VARS))
         clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{NLDAS_VARS[v]['nldas_name']}" for v in clm_vars]
@@ -111,6 +248,7 @@ def get_byloc(
     end_date: str,
     variables: str | list[str] | None = None,
     n_conn: int = 4,
+    snow: bool = False,
 ) -> pd.DataFrame:
     """Get NLDAS climate forcing data for a single location.
 
@@ -132,13 +270,15 @@ def get_byloc(
         Number of parallel connections to use for retrieving data, defaults to 4.
         The maximum number of connections is 4, if more than 4 are requested, 4
         connections will be used.
+    snow : bool, optional
+        Compute snowfall from precipitation and temperature. Defaults to ``False``.
 
     Returns
     -------
     pandas.DataFrame
         The requested data as a dataframe.
     """
-    dates, clm_vars = _check_inputs(start_date, end_date, variables)
+    dates, clm_vars = _check_inputs(start_date, end_date, variables, snow)
     kwds = [
         {
             "params": {
@@ -194,6 +334,8 @@ def get_bycoords(
     variables: str | list[str] | None = None,
     to_xarray: bool = False,
     n_conn: int = 4,
+    snow: bool = False,
+    snow_params: dict[str, float] | None = None,
 ) -> pd.DataFrame | xr.Dataset:
     """Get NLDAS climate forcing data for a list of coordinates.
 
@@ -217,6 +359,15 @@ def get_bycoords(
         Number of parallel connections to use for retrieving data, defaults to 4.
         The maximum number of connections is 4, if more than 4 are requested, 4
         connections will be used.
+    snow : bool, optional
+        Compute snowfall from precipitation and temperature. Defaults to ``False``.
+    snow_params : dict, optional
+        Model-specific parameters as a dictionary that is passed to the snowfall function.
+        These parameters are only used if ``snow`` is ``True``. Two parameters are required:
+        ``t_rain`` (deg C) which is the threshold for temperature for considering rain and
+        ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
+        The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
+        https://doi.org/10.5194/gmd-11-1077-2018.
 
     Returns
     -------
@@ -232,7 +383,12 @@ def get_bycoords(
 
     coords_val = list(zip(points.x, points.y))
     nldas = functools.partial(
-        get_byloc, variables=variables, start_date=start_date, end_date=end_date, n_conn=n_conn
+        get_byloc,
+        variables=variables,
+        start_date=start_date,
+        end_date=end_date,
+        n_conn=n_conn,
+        snow=snow,
     )
     clm = pd.concat(
         (nldas(lon=lon, lat=lat) for lon, lat in coords_val),
@@ -248,6 +404,10 @@ def get_bycoords(
         for v in clm_ds.data_vars:
             clm_ds[v].attrs = NLDAS_VARS[v]
         return clm_ds
+
+    if snow:
+        params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
+        clm = separate_snow(clm, **params)
     return clm
 
 
@@ -302,6 +462,8 @@ def get_bygeom(
     geo_crs: CRSTYPE,
     variables: str | list[str] | None = None,
     n_conn: int = 4,
+    snow: bool = False,
+    snow_params: dict[str, float] | None = None,
 ) -> xr.Dataset:
     """Get hourly NLDAS climate forcing within a geometry at 0.125 resolution.
 
@@ -322,13 +484,22 @@ def get_bygeom(
     n_conn : int, optional
         Number of parallel connections to use for retrieving data, defaults to 4.
         It should be less than 4.
+    snow : bool, optional
+        Compute snowfall from precipitation and temperature. Defaults to ``False``.
+    snow_params : dict, optional
+        Model-specific parameters as a dictionary that is passed to the snowfall function.
+        These parameters are only used if ``snow`` is ``True``. Two parameters are required:
+        ``t_rain`` (deg C) which is the threshold for temperature for considering rain and
+        ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
+        The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
+        https://doi.org/10.5194/gmd-11-1077-2018.
 
     Returns
     -------
     xarray.Dataset
         The requested forcing data.
     """
-    dates, clm_vars = _check_inputs(start_date, end_date, variables)
+    dates, clm_vars = _check_inputs(start_date, end_date, variables, snow)
 
     nldas_grid = get_grid_mask()
     geom = hgu.geo2polygon(geometry, geo_crs, nldas_grid.rio.crs)
@@ -357,9 +528,11 @@ def get_bygeom(
     clm = clm.transpose("time", "y", "x")
     for v in clm:
         clm[v].attrs = NLDAS_VARS[str(v)]
-    clm = clm.rio.write_transform()
-    clm = clm.rio.write_crs(4326)
-    clm = clm.rio.write_coordinate_system()
+    clm = hgu.xd_write_crs(clm, 4326)
+    if snow:
+        params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
+        clm = separate_snow(clm, **params)
     if isinstance(geometry, (list, tuple)):
         return clm
-    return hgu.xarray_geomask(clm, geometry, geo_crs, all_touched=True)
+    clm = hgu.xarray_geomask(clm, geometry, geo_crs, all_touched=True)
+    return clm
