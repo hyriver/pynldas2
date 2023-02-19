@@ -2,6 +2,15 @@
 History
 =======
 
+0.1.13 (unreleased)
+-------------------
+
+New Features
+~~~~~~~~~~~~
+- Add ``snow`` and ``snow_params`` arguments to both ``get_bygeom``
+  and ``get_bycoords`` functions for computing snow from ``prcp``
+  and ``temp``.
+
 0.1.12 (2023-02-10)
 -------------------
 
