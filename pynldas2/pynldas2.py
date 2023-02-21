@@ -6,7 +6,7 @@ import itertools
 import re
 import warnings
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, TypeVar, Union
+from typing import TYPE_CHECKING, Sequence, TypeVar, Union, cast
 
 import async_retriever as ar
 import numpy as np
@@ -196,16 +196,14 @@ def _txt2df(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> pd
     """Convert text to dataframe."""
     try:
         data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
-        data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
+        data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
     except EmptyDataError:
         return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
     except UFuncTypeError as ex:
         msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
         raise NLDASServiceError(msg) from ex
 
-    data = data.drop(columns=DATE_COL)
-    data.index.freq = pd.infer_freq(data.index)
-    data = data["Data"]
+    data = data.drop(columns=DATE_COL)["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
     return data
 
@@ -241,7 +239,7 @@ def _check_inputs(
     return dates, clm_vars
 
 
-def get_byloc(
+def _byloc(
     lon: float,
     lat: float,
     start_date: str,
@@ -249,35 +247,9 @@ def get_byloc(
     variables: str | list[str] | None = None,
     n_conn: int = 4,
     snow: bool = False,
+    snow_params: dict[str, float] | None = None,
 ) -> pd.DataFrame:
-    """Get NLDAS climate forcing data for a single location.
-
-    Parameters
-    ----------
-    lon : float
-        Longitude of the location.
-    lat : float
-        Latitude of the location.
-    start_date : str
-        Start date of the data.
-    end_date : str
-        End date of the data.
-    variables : str or list of str, optional
-        Variables to download. If None, all variables are downloaded.
-        Valid variables are: ``prcp``, ``pet``, ``temp``, ``wind_u``, ``wind_v``,
-        ``rlds``, ``rsds``, and ``humidity``.
-    n_conn : int, optional
-        Number of parallel connections to use for retrieving data, defaults to 4.
-        The maximum number of connections is 4, if more than 4 are requested, 4
-        connections will be used.
-    snow : bool, optional
-        Compute snowfall from precipitation and temperature. Defaults to ``False``.
-
-    Returns
-    -------
-    pandas.DataFrame
-        The requested data as a dataframe.
-    """
+    """Get NLDAS climate forcing data for a single location."""
     dates, clm_vars = _check_inputs(start_date, end_date, variables, snow)
     kwds = [
         {
@@ -302,6 +274,12 @@ def get_byloc(
     )
     clm = pd.concat(clm_merged, axis=1)
     clm = clm.rename(columns={d["nldas_name"]: n for n, d in NLDAS_VARS.items()})
+
+    if snow:
+        params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
+        clm = separate_snow(clm, **params)
+    clm.index.name = "time"
+    clm.index = pd.to_datetime(clm.index).tz_localize(None)
     return clm.loc[start_date:end_date]
 
 
@@ -310,12 +288,10 @@ def _get_lon_lat(
     crs: CRSTYPE = 4326,
 ) -> tuple[list[float], list[float]]:
     """Get longitude and latitude from a list of coordinates."""
-    if not isinstance(coords, list) and not (isinstance(coords, tuple) and len(coords) == 2):
-        raise InputTypeError("coords", "tuple of length 2 or a list of them")
-
-    coords_list = coords if isinstance(coords, list) else [coords]
-    if any(not (isinstance(c, tuple) and len(c) == 2) for c in coords_list):
-        raise InputTypeError("coords", "tuple of length 2 or a list of them")
+    try:
+        coords_list = hgu.coords_list(coords)
+    except hgu.InputTypeError as ex:
+        raise InputTypeError("coords", "tuple of length 2 or list of tuples") from ex
 
     xx, yy = zip(*coords_list)
     if pyproj.CRS(crs) == pyproj.CRS(4326):
@@ -330,6 +306,7 @@ def get_bycoords(
     coords: list[tuple[float, float]],
     start_date: str,
     end_date: str,
+    coords_id: Sequence[str | int] | None = None,
     crs: CRSTYPE = 4326,
     variables: str | list[str] | None = None,
     to_xarray: bool = False,
@@ -378,36 +355,37 @@ def get_bycoords(
 
     bounds = (-125.0, 25.0, -67.0, 53.0)
     points = hgu.Coordinates(lons, lats, bounds).points
-    if len(points) == 0:
+    n_pts = len(points)
+    if n_pts == 0 or n_pts != len(lons):
         raise InputRangeError("coords", f"{bounds}")
 
-    coords_val = list(zip(points.x, points.y))
+    idx = list(coords_id) if coords_id is not None else [f"P{i}" for i in range(n_pts)]
     nldas = functools.partial(
-        get_byloc,
+        _byloc,
         variables=variables,
         start_date=start_date,
         end_date=end_date,
         n_conn=n_conn,
         snow=snow,
+        snow_params=snow_params,
     )
-    clm = pd.concat(
-        (nldas(lon=lon, lat=lat) for lon, lat in coords_val),
-        keys=coords_val,
-    )
-    clm.index = clm.index.set_names(["lon", "lat", "time"])
+    clm_list = itertools.starmap(nldas, zip(points.x, points.y))
     if to_xarray:
-        clm = clm.reset_index()
-        clm["time"] = clm["time"].dt.tz_localize(None)
-        clm_ds = clm.set_index(["lon", "lat", "time"]).to_xarray()
+        clm_ds = xr.concat(
+            (xr.Dataset.from_dataframe(clm) for clm in clm_list), dim=pd.Index(idx, name="id")
+        )
         clm_ds.attrs["tz"] = "UTC"
-        clm_ds = clm_ds.rio.write_crs(4326)
         for v in clm_ds.data_vars:
-            clm_ds[v].attrs = NLDAS_VARS[v]
+            clm_ds[v].attrs = NLDAS_VARS[str(v)]
         return clm_ds
 
-    if snow:
-        params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
-        clm = separate_snow(clm, **params)
+    if n_pts == 1:
+        clm = next(iter(clm_list), pd.DataFrame())
+    else:
+        clm = cast("pd.DataFrame", pd.concat(clm_list, keys=idx, axis=1))
+        clm.columns = clm.columns.set_names(["id", "variable"])
+    clm.index = clm.index.tz_localize("UTC")
+    clm.index.name = "time"
     return clm
 
 
