@@ -10,6 +10,15 @@ New Features
 - Add ``snow`` and ``snow_params`` arguments to both ``get_bygeom``
   and ``get_bycoords`` functions for computing snow from ``prcp``
   and ``temp``.
+- Rewrite ``by_coords`` functions to improve performance and
+  reduce memory usage. Also, its ``to_xarray`` argument now returns
+  a much better structured ``xarray.Dataset``. Moreover, the function
+  has a new argument called ``coords_id`` which allows the user to
+  specify IDs for the input coordinates. This is useful for cases
+  where the coordinates belong to some specific features, such as
+  station location, that have their own IDs. These IDs will be used
+  for both cases where the data is returned as ``pandas.DataFrame``
+  or ``xarray.Dataset``.
 
 0.1.12 (2023-02-10)
 -------------------
