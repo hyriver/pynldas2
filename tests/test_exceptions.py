@@ -18,41 +18,41 @@ END = "2000-01-12"
 
 def test_coords_range_coords():
     with pytest.raises(InputRangeError) as ex:
-        _ = nldas.get_bycoords(COORDS, START, END, DEF_CRS, VAR)
+        _ = nldas.get_bycoords(COORDS, START, END, crs=DEF_CRS, variables=VAR)
     assert "range" in str(ex.value)
 
 
 def test_coords_range_start():
     with pytest.raises(InputRangeError) as ex:
-        _ = nldas.get_bycoords(COORDS, "1970-01-01", END, ALT_CRS, VAR)
+        _ = nldas.get_bycoords(COORDS, "1970-01-01", END, crs=ALT_CRS, variables=VAR)
     assert "start_date" in str(ex.value)
 
 
 def test_coords_range_end():
     with pytest.raises(InputRangeError) as ex:
-        _ = nldas.get_bycoords(COORDS, START, "1970-01-01", ALT_CRS, VAR)
+        _ = nldas.get_bycoords(COORDS, START, "1970-01-01", crs=ALT_CRS, variables=VAR)
     assert "end_date" in str(ex.value)
 
 
 def test_coords_range_end_before_start():
     with pytest.raises(InputRangeError) as ex:
-        _ = nldas.get_bycoords(COORDS, START, "1980-01-01", ALT_CRS, VAR)
+        _ = nldas.get_bycoords(COORDS, START, "1980-01-01", crs=ALT_CRS, variables=VAR)
     assert "after start_date" in str(ex.value)
 
 
 def test_coords_type():
     with pytest.raises(InputTypeError) as ex:
-        _ = nldas.get_bycoords(COORDS[0], START, END, ALT_CRS, VAR)
+        _ = nldas.get_bycoords(COORDS[0], START, END, crs=ALT_CRS, variables=VAR)
     assert "tuple" in str(ex.value)
 
 
 def test_coords_type_len():
     with pytest.raises(InputTypeError) as ex:
-        _ = nldas.get_bycoords(COORDS + COORDS, START, END, ALT_CRS, VAR)
+        _ = nldas.get_bycoords(COORDS + COORDS, START, END, crs=ALT_CRS, variables=VAR)
     assert "length 2" in str(ex.value)
 
 
 def test_coords_var():
     with pytest.raises(InputValueError) as ex:
-        _ = nldas.get_bycoords(COORDS, START, END, ALT_CRS, "tmin")
+        _ = nldas.get_bycoords(COORDS, START, END, crs=ALT_CRS, variables="tmin")
     assert "prcp" in str(ex.value)

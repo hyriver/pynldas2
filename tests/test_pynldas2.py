@@ -25,13 +25,15 @@ def assert_close(a: float, b: float, rtol: float = 1e-2) -> bool:
 
 
 def test_coords():
-    clm = nldas.get_bycoords(COORDS, START, END, ALT_CRS, VAR, n_conn=CONN)
+    clm = nldas.get_bycoords(COORDS, START, END, crs=ALT_CRS, variables=VAR, n_conn=CONN)
     assert_close(clm.prcp.mean(), 0.0051)
     assert_close(clm.pet.mean(), 0.1346)
 
 
 def test_coords_xr():
-    clm = nldas.get_bycoords(COORDS, START, END, ALT_CRS, "prcp", True, n_conn=CONN)
+    clm = nldas.get_bycoords(
+        COORDS, START, END, crs=ALT_CRS, variables="prcp", to_xarray=True, n_conn=CONN
+    )
     assert_close(clm.prcp.mean(), 0.0051)
 
 
@@ -48,10 +50,17 @@ def test_geom_box():
 
 @pytest.mark.speedup
 def test_snow():
-    clm = nldas.get_bycoords((-89.6, 48.3), "2000-01-01", "2000-01-02", DEF_CRS, "prcp", snow=True)
+    clm = nldas.get_bycoords(
+        (-89.6, 48.3), "2000-01-01", "2000-01-02", crs=DEF_CRS, variables="prcp", snow=True
+    )
     assert_close(clm.snow.mean(), 0.0017)
     clm = nldas.get_bygeom(
-        Point(-89.6, 48.3).buffer(0.05), "2000-01-01", "2000-01-02", DEF_CRS, "prcp", snow=True
+        Point(-89.6, 48.3).buffer(0.05),
+        "2000-01-01",
+        "2000-01-02",
+        DEF_CRS,
+        "prcp",
+        snow=True,
     )
     assert_close(clm.snow.mean().compute().item(), 0.00163)
 
