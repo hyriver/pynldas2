@@ -2,7 +2,7 @@
 History
 =======
 
-0.1.13 (unreleased)
+0.14.0 (unreleased)
 -------------------
 
 New Features
@@ -19,6 +19,10 @@ New Features
   station location, that have their own IDs. These IDs will be used
   for both cases where the data is returned as ``pandas.DataFrame``
   or ``xarray.Dataset``.
+
+Internal Changes
+~~~~~~~~~~~~~~~~
+- Sync all minor versions of HyRiver packages to 0.14.0.
 
 0.1.12 (2023-02-10)
 -------------------
