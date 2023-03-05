@@ -34,7 +34,7 @@ dynamic = [
   "version",
 ]
 dependencies = [
-  "async-retriever>=0.3.12",
+  "async-retriever>=0.14.0",
   "h5netcdf",
   "numpy>=1.21",
   "pandas>=1",
