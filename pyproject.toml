@@ -34,11 +34,11 @@ dynamic = [
   "version",
 ]
 dependencies = [
-  "async-retriever>=0.14.0",
+  "async-retriever>=0.14",
   "h5netcdf",
   "numpy>=1.21",
   "pandas>=1",
-  "pygeoutils>=0.14.0",
+  "pygeoutils>=0.14",
   "pyproj>=2.2",
   "rioxarray>=0.11",
   "xarray>=2022.03",
