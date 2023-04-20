@@ -54,7 +54,8 @@ T_RAIN = 2.5  # degC
 T_SNOW = 0.6  # degC
 CRSTYPE = Union[int, str, pyproj.CRS]
 URL = "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi"
-NLDAS_VARS = {
+
+NLDAS_VARS_002 = {
     "prcp": {"nldas_name": "APCPsfc", "long_name": "Precipitation hourly total", "units": "mm"},
     "pet": {"nldas_name": "PEVAPsfc", "long_name": "Potential evaporation", "units": "mm"},
     "temp": {"nldas_name": "TMP2m", "long_name": "2-m above ground temperature", "units": "K"},
@@ -84,6 +85,43 @@ NLDAS_VARS = {
         "units": "kg/kg",
     },
 }
+
+NLDAS_VARS_V2 = {
+    "Rainf": {"nldas_name": "Rainf", "long_name": "Total precipitation", "units": "kg/m^2"},
+    "LWdown": {
+        "nldas_name": "LWdown",
+        "long_name": "Surface downward longwave radiation",
+        "units": "W/m^2",
+    },
+    "SWdown": {
+        "nldas_name": "SWdown",
+        "long_name": "Surface downward shortwave radiation",
+        "units": "W/m^2",
+    },
+    "PotEvap": {"nldas_name": "PotEvap", "long_name": "Potential evaporation", "units": "kg/m^2"},
+    "PSurf": {"nldas_name": "PSurf", "long_name": "Surface pressure", "units": "Pa"},
+    "Qair": {
+        "nldas_name": "Qair",
+        "long_name": "2-m above ground specific humidity",
+        "units": "kg/kg",
+    },
+    "Tair": {
+        "nldas_name": "Tair",
+        "long_name": "2-m above ground temperature",
+        "units": "K",
+    },
+    "Wind_E": {
+        "nldas_name": "Wind_E",
+        "long_name": "U wind component at 10-m above the surface",
+        "units": "m/s",
+    },
+    "Wind_N": {
+        "nldas_name": "Wind_N",
+        "long_name": "V wind component at 10-m above the surface",
+        "units": "m/s",
+    },
+}
+
 DATE_COL = "Date&Time"
 DATE_FMT = "%Y-%m-%dT%H"
 __all__ = ["get_bycoords", "get_grid_mask", "get_bygeom"]
@@ -192,11 +230,21 @@ def separate_snow(clm: DF, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> DF
     return _snow_point(clm, t_rain + 273.15, t_snow)
 
 
-def _txt2df(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> pd.Series:
+def _txt2df(
+    txt: str,
+    resp_id: int,
+    kwds: list[dict[str, dict[str, str]]],
+    model: str = "NLDAS_FORA0125_H.002",
+) -> pd.Series:
     """Convert text to dataframe."""
     try:
-        data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
-        data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
+        if model == "NLDAS_FORA0125_H.002":
+            data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+            data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
+        elif model == "NLDAS_FORA0125_H_v2.0":
+            data = pd.read_csv(StringIO(txt), skiprows=12, delim_whitespace=True).dropna()
+            data.index = pd.to_datetime(data[DATE_COL], utc=True)
+
     except EmptyDataError:
         return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
     except UFuncTypeError as ex:
@@ -213,7 +261,8 @@ def _check_inputs(
     end_date: str,
     variables: str | list[str] | None = None,
     snow: bool = False,
-) -> tuple[list[pd.Timestamp], list[str]]:
+    model: str = "NLDAS_FORA0125_H.002",
+) -> tuple[list[pd.Timestamp], list[str], dict[str, dict[str, str]]]:
     """Check inputs."""
     start = pd.to_datetime(start_date)
     end = pd.to_datetime(end_date) + pd.Timedelta("1D")
@@ -227,16 +276,27 @@ def _check_inputs(
     dates = pd.date_range(start, end, freq="10000D").tolist()
     dates = dates + [end] if dates[-1] < end else dates
 
+    if model == "NLDAS_FORA0125_H.002":
+        model = "NLDAS:" + model
+        nldas_vars = NLDAS_VARS_002
+    elif model == "NLDAS_FORA0125_H_v2.0":
+        model = "NLDAS2:" + model
+        nldas_vars = NLDAS_VARS_V2
+    else:
+        raise InputValueError(
+            f"Model: {model} is invalid", ["NLDAS_FORA0125_H.002", "NLDAS_FORA0125_H_v2.0"]
+        )
+
     if variables is None:
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{d['nldas_name']}" for d in NLDAS_VARS.values()]
+        clm_vars = [f"{model}:{d['nldas_name']}" for d in nldas_vars.values()]
     else:
         clm_vars = [variables] if isinstance(variables, str) else list(variables)
         clm_vars = clm_vars + ["temp"] if snow and "temp" not in clm_vars else clm_vars
-        if any(v not in NLDAS_VARS for v in clm_vars):
-            raise InputValueError("variables", list(NLDAS_VARS))
-        clm_vars = [f"NLDAS:NLDAS_FORA0125_H.002:{NLDAS_VARS[v]['nldas_name']}" for v in clm_vars]
+        if any(v not in nldas_vars for v in clm_vars):
+            raise InputValueError("variables", list(nldas_vars))
+        clm_vars = [f"{model}:{nldas_vars[v]['nldas_name']}" for v in clm_vars]
 
-    return dates, clm_vars
+    return dates, clm_vars, nldas_vars
 
 
 def _byloc(
@@ -248,9 +308,10 @@ def _byloc(
     n_conn: int = 4,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
+    model: str = "NLDAS_FORA0125_H.002",
 ) -> pd.DataFrame:
     """Get NLDAS climate forcing data for a single location."""
-    dates, clm_vars = _check_inputs(start_date, end_date, variables, snow)
+    dates, clm_vars, nldas_vars = _check_inputs(start_date, end_date, variables, snow, model)
     kwds = [
         {
             "params": {
@@ -267,13 +328,14 @@ def _byloc(
     n_conn = min(n_conn, 4)
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
 
-    clm_list = (_txt2df(txt, i, kwds) for i, txt in enumerate(resp))
+    clm_list = (_txt2df(txt, i, kwds, model=model) for i, txt in enumerate(resp))
+
     clm_merged = (
         pd.concat(df)
         for _, df in itertools.groupby(sorted(clm_list, key=lambda x: x.name), lambda x: x.name)
     )
     clm = pd.concat(clm_merged, axis=1)
-    clm = clm.rename(columns={d["nldas_name"]: n for n, d in NLDAS_VARS.items()})
+    clm = clm.rename(columns={d["nldas_name"]: n for n, d in nldas_vars.items()})
 
     if snow:
         params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
@@ -313,6 +375,7 @@ def get_bycoords(
     n_conn: int = 4,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
+    model: str = "NLDAS_FORA0125_H.002",
 ) -> pd.DataFrame | xr.Dataset:
     """Get NLDAS climate forcing data for a list of coordinates.
 
@@ -345,6 +408,9 @@ def get_bycoords(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
+    model: str, optional
+        Model to pull data rods from. Valid models are: ``NLDAS_FORA0125_H.002``,
+        ``NLDAS_FORA0125_H_v2.0``
 
     Returns
     -------
@@ -362,6 +428,7 @@ def get_bycoords(
     idx = list(coords_id) if coords_id is not None else [f"P{i}" for i in range(n_pts)]
     nldas = functools.partial(
         _byloc,
+        model=model,
         variables=variables,
         start_date=start_date,
         end_date=end_date,
@@ -369,6 +436,9 @@ def get_bycoords(
         snow=snow,
         snow_params=snow_params,
     )
+
+    _, _, nldas_vars = _check_inputs(start_date, end_date, variables, snow, model)
+
     clm_list = itertools.starmap(nldas, zip(points.x, points.y))
     if to_xarray:
         clm_ds = xr.concat(
@@ -376,7 +446,7 @@ def get_bycoords(
         )
         clm_ds.attrs["tz"] = "UTC"
         for v in clm_ds.data_vars:
-            clm_ds[v].attrs = NLDAS_VARS[str(v)]
+            clm_ds[v].attrs = nldas_vars[str(v)]
         return clm_ds
 
     if n_pts == 1:
@@ -411,11 +481,20 @@ def get_grid_mask():
     return grid
 
 
-def _txt2da(txt: str, resp_id: int, kwds: list[dict[str, dict[str, str]]]) -> xr.DataArray:
+def _txt2da(
+    txt: str,
+    resp_id: int,
+    kwds: list[dict[str, dict[str, str]]],
+    model: str = "NLDAS_FORA0125_H.002",
+) -> xr.DataArray:
     """Convert text to dataarray."""
     try:
-        data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
-        data.index = pd.to_datetime(data.index + " " + data[DATE_COL])
+        if model == "NLDAS_FORA0125_H.002":
+            data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+            data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
+        elif model == "NLDAS_FORA0125_H_v2.0":
+            data = pd.read_csv(StringIO(txt), skiprows=12, delim_whitespace=True).dropna()
+            data.index = pd.to_datetime(data[DATE_COL], utc=True)
     except EmptyDataError:
         return xr.DataArray(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
     except UFuncTypeError as ex:
@@ -442,6 +521,7 @@ def get_bygeom(
     n_conn: int = 4,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
+    model: str = "NLDAS_FORA0125_H.002",
 ) -> xr.Dataset:
     """Get hourly NLDAS climate forcing within a geometry at 0.125 resolution.
 
@@ -471,13 +551,16 @@ def get_bygeom(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
+    model: str, optional
+        Model to pull data rods from. Valid models are: ``NLDAS_FORA0125_H.002``,
+        ``NLDAS_FORA0125_H_v2.0``
 
     Returns
     -------
     xarray.Dataset
         The requested forcing data.
     """
-    dates, clm_vars = _check_inputs(start_date, end_date, variables, snow)
+    dates, clm_vars, nldas_vars = _check_inputs(start_date, end_date, variables, snow, model)
 
     nldas_grid = get_grid_mask()
     geom = hgu.geo2polygon(geometry, geo_crs, nldas_grid.rio.crs)
@@ -499,13 +582,13 @@ def get_bygeom(
     n_conn = min(n_conn, 4)
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
 
-    clm = xr.merge(_txt2da(txt, i, kwds) for i, txt in enumerate(resp))
-    clm = clm.rename({d["nldas_name"]: n for n, d in NLDAS_VARS.items() if d["nldas_name"] in clm})
+    clm = xr.merge(_txt2da(txt, i, kwds, model=model) for i, txt in enumerate(resp))
+    clm = clm.rename({d["nldas_name"]: n for n, d in nldas_vars.items() if d["nldas_name"] in clm})
     clm = clm.sel(time=slice(start_date, end_date))
     clm.attrs["tz"] = "UTC"
     clm = clm.transpose("time", "y", "x")
     for v in clm:
-        clm[v].attrs = NLDAS_VARS[str(v)]
+        clm[v].attrs = nldas_vars[str(v)]
     clm = hgu.xd_write_crs(clm, 4326)
     if snow:
         params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params

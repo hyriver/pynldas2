@@ -3,8 +3,11 @@ import io
 import os
 
 import numpy as np
+import osgeo  # https://gis.stackexchange.com/questions/417733/unable-to-import-python-rasterio-package-even-though-it-is-installed
 import pytest
 from shapely import Point, Polygon
+
+osgeo.__version__  # So nox doesn't remove it
 
 import pynldas2 as nldas
 
@@ -12,12 +15,15 @@ GEOM = Polygon(
     [[-69.77, 45.07], [-69.31, 45.07], [-69.31, 45.45], [-69.77, 45.45], [-69.77, 45.07]]
 )
 VAR = ["prcp", "pet"]
+VAR_V2 = ["Rainf", "PotEvap"]
 DEF_CRS = 4326
 ALT_CRS = 3542
 COORDS = (-1431147.7928, 318483.4618)
 START = "2000-01-01"
 END = "2000-01-12"
 CONN = 1 if int(os.environ.get("GH_CI", 0)) else 4
+MODEL002 = "NLDAS_FORA0125_H.002"
+MODELV2 = "NLDAS_FORA0125_H_v2.0"
 
 
 def assert_close(a: float, b: float, rtol: float = 1e-2) -> bool:
@@ -28,6 +34,20 @@ def test_coords():
     clm = nldas.get_bycoords(COORDS, START, END, crs=ALT_CRS, variables=VAR, n_conn=CONN)
     assert_close(clm.prcp.mean(), 0.0051)
     assert_close(clm.pet.mean(), 0.1346)
+
+
+def test_coords_explicit_model():
+    clm = nldas.get_bycoords(
+        COORDS, START, END, crs=ALT_CRS, model=MODEL002, variables=VAR, n_conn=CONN
+    )
+    assert_close(clm.prcp.mean(), 0.0051)
+    assert_close(clm.pet.mean(), 0.1346)
+
+    clm = nldas.get_bycoords(
+        COORDS, START, END, crs=ALT_CRS, model=MODELV2, variables=VAR_V2, n_conn=CONN
+    )
+    assert_close(clm.Rainf.mean(), 0.0051)
+    assert_close(clm.PotEvap.mean(), 0.1346)
 
 
 def test_coords_xr():

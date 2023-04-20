@@ -2,6 +2,23 @@
 History
 =======
 
+0.15.0 (2023-04-20)
+-------------------
+
+New Features
+~~~~~~~~~~~~
+- Add ``model`` argument to both ``get_bygeom`` and ``get_bycoords`` functions.
+  Valid values for model are ``NLDAS_FORA0125_H.002`` (default) and ``NLDAS_FORA0125_H_v2.0``.
+  Both return the same values, the latter also offers additional variable ``PSurf``
+  for surface pressure.
+  Valid variable names for ``NLDAS_FORA0125_H_v2.0`` are:
+  ``Rainf``, ``LWdown``, ``SWdown``, ``PotEvap``, ``PSurf``, ``Qair``,
+  ``Tair``, ``Wind_E``, ``Wind_N``
+  Valid variable names for ``NLDAS_FORA0125_H.002`` are unchanged as to not
+  introduce breaking changes.
+
+By Luc Rébillout ``<https://github.com/LucRSquared>``
+
 0.14.0 (2023-03-05)
 -------------------
 
