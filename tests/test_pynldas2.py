@@ -15,15 +15,16 @@ GEOM = Polygon(
     [[-69.77, 45.07], [-69.31, 45.07], [-69.31, 45.45], [-69.77, 45.45], [-69.77, 45.07]]
 )
 VAR = ["prcp", "pet"]
-VAR_V2 = ["Rainf", "PotEvap"]
 DEF_CRS = 4326
 ALT_CRS = 3542
 COORDS = (-1431147.7928, 318483.4618)
 START = "2000-01-01"
 END = "2000-01-12"
+START_ALT = "2022-01-01"  # at the time of testing, the rods for source="netcdf" were
+END_ALT = "2022-01-31"  # unavailable except for the year 2022
 CONN = 1 if int(os.environ.get("GH_CI", 0)) else 4
-MODEL002 = "NLDAS_FORA0125_H.002"
-MODELV2 = "NLDAS_FORA0125_H_v2.0"
+SOURCE_GRIB = "grib"
+SOURCE_NETCDF = "netcdf"
 
 
 def assert_close(a: float, b: float, rtol: float = 1e-2) -> bool:
@@ -36,18 +37,18 @@ def test_coords():
     assert_close(clm.pet.mean(), 0.1346)
 
 
-def test_coords_explicit_model():
+def test_coords_explicit_source():
     clm = nldas.get_bycoords(
-        COORDS, START, END, crs=ALT_CRS, model=MODEL002, variables=VAR, n_conn=CONN
+        COORDS, START, END, crs=ALT_CRS, source=SOURCE_GRIB, variables=VAR, n_conn=CONN
     )
     assert_close(clm.prcp.mean(), 0.0051)
     assert_close(clm.pet.mean(), 0.1346)
 
     clm = nldas.get_bycoords(
-        COORDS, START, END, crs=ALT_CRS, model=MODELV2, variables=VAR_V2, n_conn=CONN
+        COORDS, START_ALT, END_ALT, crs=ALT_CRS, source=SOURCE_NETCDF, variables=VAR, n_conn=CONN
     )
-    assert_close(clm.Rainf.mean(), 0.0051)
-    assert_close(clm.PotEvap.mean(), 0.1346)
+    assert_close(clm.prcp.mean(), 0.0058)
+    assert_close(clm.pet.mean(), 0.1242)
 
 
 def test_coords_xr():
