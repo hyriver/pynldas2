@@ -7,14 +7,14 @@ History
 
 New Features
 ~~~~~~~~~~~~
-- Add ``model`` argument to both ``get_bygeom`` and ``get_bycoords`` functions.
-  Valid values for model are ``NLDAS_FORA0125_H.002`` (default) and ``NLDAS_FORA0125_H_v2.0``.
-  Both return the same values, the latter also offers additional variable ``PSurf``
+- Add ``source`` argument to both ``get_bygeom`` and ``get_bycoords`` functions.
+  Valid values for source are ``grib`` (default) and ``netcdf``.
+  Both return the same values, the latter also offers additional variable ``psurf``
   for surface pressure.
-  Valid variable names for ``NLDAS_FORA0125_H_v2.0`` are:
-  ``Rainf``, ``LWdown``, ``SWdown``, ``PotEvap``, ``PSurf``, ``Qair``,
-  ``Tair``, ``Wind_E``, ``Wind_N``
-  Valid variable names for ``NLDAS_FORA0125_H.002`` are unchanged as to not
+  Valid variable names for ``netcdf`` are:
+  ``prcp``, ``pet``, ``wind_u``, ``wind_v``, ``humidity``,
+  ``temp``, ``rsds``, ``rlds``, ``psurf``
+  Valid variable names for ``grib`` source are unchanged as to not
   introduce breaking changes.
 
 By Luc Rébillout ``<https://github.com/LucRSquared>``
