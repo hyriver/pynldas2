@@ -241,10 +241,9 @@ def _txt2df(
         if source == "grib":
             data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
             data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
-        elif source == "netcdf":
+        else:
             data = pd.read_csv(StringIO(txt), skiprows=12, delim_whitespace=True).dropna()
             data.index = pd.to_datetime(data[DATE_COL], utc=True)
-
     except EmptyDataError:
         return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
     except UFuncTypeError as ex:
@@ -283,7 +282,7 @@ def _check_inputs(
         source_tag = "NLDAS2:NLDAS_FORA0125_H_v2.0"
         nldas_vars = NLDAS_VARS_NETCDF
     else:
-        raise InputValueError(f"Source: {source} is invalid", ["grib", "netcdf"])
+        raise InputValueError("source", ["grib", "netcdf"])
 
     if variables is None:
         clm_vars = [f"{source_tag}:{d['nldas_name']}" for d in nldas_vars.values()]
@@ -472,9 +471,7 @@ def get_grid_mask():
     )
     resp = ar.retrieve_binary([url])
     grid = xr.open_dataset(BytesIO(resp[0]), engine="h5netcdf")
-    grid = grid.rio.write_transform()
-    grid = grid.rio.write_crs(4326)
-    grid = grid.rio.write_coordinate_system()
+    grid = hgu.xd_write_crs(grid, 4326)
     return grid
 
 
@@ -489,7 +486,7 @@ def _txt2da(
         if source == "grib":
             data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
             data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
-        elif source == "netcdf":
+        else:
             data = pd.read_csv(StringIO(txt), skiprows=12, delim_whitespace=True).dropna()
             data.index = pd.to_datetime(data[DATE_COL], utc=True)
     except EmptyDataError:
@@ -549,7 +546,7 @@ def get_bygeom(
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
     source: str, optional
-        Source to pull data rods from. Valid sources are: ``grib`` and ``netcdf``
+        Source to pull data rods from. Valid sources are: ``grib`` and ``netcdf``.
 
     Returns
     -------
