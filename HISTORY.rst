@@ -2,6 +2,23 @@
 History
 =======
 
+0.15.0 (2023-04-20)
+-------------------
+
+New Features
+~~~~~~~~~~~~
+- Add ``source`` argument to both ``get_bygeom`` and ``get_bycoords`` functions.
+  Valid values for source are ``grib`` (default) and ``netcdf``.
+  Both return the same values, the latter also offers additional variable ``psurf``
+  for surface pressure.
+  Valid variable names for ``netcdf`` are:
+  ``prcp``, ``pet``, ``wind_u``, ``wind_v``, ``humidity``,
+  ``temp``, ``rsds``, ``rlds``, ``psurf``
+  Valid variable names for ``grib`` source are unchanged as to not
+  introduce breaking changes.
+
+By Luc Rébillout ``<https://github.com/LucRSquared>``
+
 0.14.0 (2023-03-05)
 -------------------
 
