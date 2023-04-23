@@ -17,7 +17,7 @@ New Features
   Valid variable names for ``grib`` source are unchanged as to not
   introduce breaking changes.
 
-By Luc Rébillout ``<https://github.com/LucRSquared>``
+By `Luc Rébillout <https://github.com/LucRSquared>`__.
 
 0.14.0 (2023-03-05)
 -------------------
