@@ -3,11 +3,8 @@ import io
 import os
 
 import numpy as np
-import osgeo  # https://gis.stackexchange.com/questions/417733/unable-to-import-python-rasterio-package-even-though-it-is-installed
 import pytest
 from shapely.geometry import Point, Polygon
-
-osgeo.__version__  # So nox doesn't remove it
 
 import pynldas2 as nldas
 
