@@ -45,7 +45,7 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from shapely import MultiPolygon, Polygon
+    from shapely.geometry import MultiPolygon, Polygon
 
     DF = TypeVar("DF", pd.DataFrame, xr.Dataset)
 
