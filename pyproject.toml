@@ -39,7 +39,7 @@ dependencies = [
   "numpy>=1.21",
   "pandas>=1",
   "pygeoutils>=0.14",
-  "pyproj>=2.2",
+  "pyproj>=3.0.1",
   "rioxarray>=0.11",
   "xarray>=2022.03",
 ]
