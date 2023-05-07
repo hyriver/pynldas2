@@ -21,9 +21,7 @@ New Features
   ``prcp``, ``pet``, ``wind_u``, ``wind_v``, ``humidity``,
   ``temp``, ``rsds``, ``rlds``, ``psurf``
   Valid variable names for ``grib`` source are unchanged as to not
-  introduce breaking changes.
-
-By `Luc Rébillout <https://github.com/LucRSquared>`__.
+  introduce breaking changes. By `Luc Rébillout <https://github.com/LucRSquared>`__.
 - For now, retain compatibility with ``shapely<2`` while supporting
   ``shapley>=2``.
 
