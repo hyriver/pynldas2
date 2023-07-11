@@ -2,6 +2,22 @@
 History
 =======
 
+0.15.1 (2023-07-10)
+-------------------
+
+Bug Fixes
+~~~~~~~~~
+- Fix a bug in computing snow where the ``t_snow`` argument was not
+  being converted to Kelvin.
+
+New Features
+~~~~~~~~~~~~
+- If ``snow=True`` is passed to both ``get_bygeom`` and ``get_bycoords``
+  functions, the ``variables`` argument will be checked to see if it
+  contains ``prcp`` and ``temp``, if not, they will be added to the
+  list of variables to be retrieved. This is to ensure that the
+  ``snow`` argument works as expected.
+
 0.15.0 (2023-05-07)
 -------------------
 From release 0.15 onward, all minor versions of HyRiver packages
