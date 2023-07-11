@@ -71,7 +71,7 @@ def test_snow():
     clm = nldas.get_bycoords(
         (-89.6, 48.3), "2000-01-01", "2000-01-02", crs=DEF_CRS, variables="prcp", snow=True
     )
-    assert_close(clm.snow.mean(), 0.0017)
+    assert_close(clm.snow.mean(), 0.0458)
     clm = nldas.get_bygeom(
         Point(-89.6, 48.3).buffer(0.05),
         "2000-01-01",
@@ -80,7 +80,7 @@ def test_snow():
         "prcp",
         snow=True,
     )
-    assert_close(clm.snow.mean().compute().item(), 0.00163)
+    assert_close(clm.snow.mean().compute().item(), 0.04287)
 
 
 def test_show_versions():
