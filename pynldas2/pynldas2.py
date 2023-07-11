@@ -6,7 +6,7 @@ import itertools
 import re
 import warnings
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, Sequence, TypeVar, Union, cast
+from typing import TYPE_CHECKING, Sequence, TypeVar, Union
 
 import async_retriever as ar
 import numpy as np
@@ -25,7 +25,7 @@ try:
     from numba import njit, prange
 
     ngjit = functools.partial(njit, cache=True, nogil=True)
-    numba_config.THREADING_LAYER = "workqueue"
+    numba_config.THREADING_LAYER = "workqueue"  # pyright: ignore[reportGeneralTypeIssues]
     has_numba = True
 except ImportError:
     has_numba = False
@@ -203,9 +203,9 @@ def separate_snow(clm: DF, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> DF
     clm : pandas.DataFrame or xarray.Dataset
         Climate data that should include ``prcp`` and ``temp``.
     t_rain : float, optional
-        Threshold for temperature for considering rain, defaults to 2.5 degrees C.
+        Threshold for temperature in deg C for considering rain, defaults to 2.5 degrees C.
     t_snow : float, optional
-        Threshold for temperature for considering snow, defaults to 0.6 degrees C.
+        Threshold for temperature in deg C for considering snow, defaults to 0.6 degrees C.
 
     Returns
     -------
@@ -226,8 +226,8 @@ def separate_snow(clm: DF, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> DF
         raise InputTypeError("clm", "pandas.DataFrame or xarray.Dataset")
 
     if isinstance(clm, xr.Dataset):
-        return _snow_gridded(clm, t_rain + 273.15, t_snow)  # type: ignore
-    return _snow_point(clm, t_rain + 273.15, t_snow)
+        return _snow_gridded(clm, t_rain + 273.15, t_snow + 273.15)  # type: ignore
+    return _snow_point(clm, t_rain + 273.15, t_snow + 273.15)
 
 
 def _txt2df(
@@ -288,7 +288,10 @@ def _check_inputs(
         clm_vars = [f"{source_tag}:{d['nldas_name']}" for d in nldas_vars.values()]
     else:
         clm_vars = [variables] if isinstance(variables, str) else list(variables)
-        clm_vars = clm_vars + ["temp"] if snow and "temp" not in clm_vars else clm_vars
+        if snow:
+            required_vars = ["temp", "prcp"]
+            if not all(v in clm_vars for v in required_vars):
+                clm_vars = list(set(clm_vars).union(required_vars))
         if any(v not in nldas_vars for v in clm_vars):
             raise InputValueError("variables", list(nldas_vars))
         clm_vars = [f"{source_tag}:{nldas_vars[v]['nldas_name']}" for v in clm_vars]
@@ -448,9 +451,9 @@ def get_bycoords(
     if n_pts == 1:
         clm = next(iter(clm_list), pd.DataFrame())
     else:
-        clm = cast("pd.DataFrame", pd.concat(clm_list, keys=idx, axis=1))
+        clm = pd.concat(clm_list, keys=idx, axis=1)
         clm.columns = clm.columns.set_names(["id", "variable"])
-    clm.index = clm.index.tz_localize("UTC")
+    clm.index = pd.DatetimeIndex(clm.index, tz="UTC")
     clm.index.name = "time"
     return clm
 
