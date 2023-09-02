@@ -40,7 +40,7 @@ dependencies = [
   "pygeoutils<0.16,>=0.15",
   "pyproj>=3.0.1",
   "rioxarray>=0.11",
-  "xarray>=2022.03",
+  "xarray>=2023.04",
 ]
 [project.optional-dependencies]
 speedup = [
