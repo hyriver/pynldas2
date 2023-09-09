@@ -162,7 +162,7 @@ def _snow_point(climate: pd.DataFrame, t_rain: float, t_snow: float) -> pd.DataF
 
 def _snow_gridded(climate: xr.Dataset, t_rain: float, t_snow: float) -> xr.Dataset:
     """Separate snow from precipitation."""
-    clm = climate.copy().chunk({"time": -1})
+    clm = climate.copy()
 
     def snow_func(
         prcp: npt.NDArray[np.float64],
@@ -187,7 +187,6 @@ def _snow_gridded(climate: xr.Dataset, t_rain: float, t_snow: float) -> xr.Datas
         input_core_dims=[["time"], ["time"], [], []],
         output_core_dims=[["time"]],
         vectorize=True,
-        dask="parallelized",
         output_dtypes=[clm["prcp"].dtype],
     ).transpose("time", "y", "x")
     clm["snow"].attrs["units"] = "mm"
@@ -332,7 +331,7 @@ def _byloc(
 
     clm_merged = (
         pd.concat(df)
-        for _, df in itertools.groupby(sorted(clm_list, key=lambda x: x.name), lambda x: x.name)
+        for _, df in itertools.groupby(sorted(clm_list, key=lambda x: str(x.name)), lambda x: str(x.name))
     )
     clm = pd.concat(clm_merged, axis=1)
     clm = clm.rename(columns={d["nldas_name"]: n for n, d in nldas_vars.items()})
