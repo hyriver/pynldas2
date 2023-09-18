@@ -254,26 +254,12 @@ def _txt2df(
     return data
 
 
-def _check_inputs(
-    start_date: str,
-    end_date: str,
+def _get_variables(
     variables: str | list[str] | None = None,
     snow: bool = False,
     source: str = "grib",
-) -> tuple[list[pd.Timestamp], list[str], dict[str, dict[str, str]]]:
-    """Check inputs."""
-    start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date) + pd.Timedelta("1D")
-    if start < pd.to_datetime("1979-01-01T13"):
-        raise InputRangeError("start_date", "1979-01-01 to yesterday")
-    if end > pd.Timestamp.now() - pd.Timedelta("1D"):
-        raise InputRangeError("end_date", "1979-01-01 to yesterday")
-    if end <= start:
-        raise InputRangeError("end_date", "after start_date")
-
-    dates = pd.date_range(start, end, freq="10000D").tolist()
-    dates = dates + [end] if dates[-1] < end else dates
-
+) -> tuple[list[str], dict[str, dict[str, str]]]:
+    """Get variables."""
     if source == "grib":
         source_tag = "NLDAS:NLDAS_FORA0125_H.002"
         nldas_vars = NLDAS_VARS_GRIB
@@ -294,8 +280,26 @@ def _check_inputs(
         if any(v not in nldas_vars for v in clm_vars):
             raise InputValueError("variables", list(nldas_vars))
         clm_vars = [f"{source_tag}:{nldas_vars[v]['nldas_name']}" for v in clm_vars]
+    return clm_vars, nldas_vars
 
-    return dates, clm_vars, nldas_vars
+
+def _get_dates(
+    start_date: str,
+    end_date: str,
+) -> list[pd.Timestamp]:
+    """Get dates."""
+    start = pd.to_datetime(start_date)
+    end = pd.to_datetime(end_date) + pd.Timedelta("1D")
+    if start < pd.to_datetime("1979-01-01T13"):
+        raise InputRangeError("start_date", "1979-01-01 to yesterday")
+    if end > pd.Timestamp.now() - pd.Timedelta("1D"):
+        raise InputRangeError("end_date", "1979-01-01 to yesterday")
+    if end <= start:
+        raise InputRangeError("end_date", "after start_date")
+
+    dates = pd.date_range(start, end, freq="10000D").tolist()
+    dates = dates + [end] if dates[-1] < end else dates
+    return dates
 
 
 def _byloc(
@@ -310,7 +314,8 @@ def _byloc(
     source: str = "grib",
 ) -> pd.DataFrame:
     """Get NLDAS climate forcing data for a single location."""
-    dates, clm_vars, nldas_vars = _check_inputs(start_date, end_date, variables, snow, source)
+    dates = _get_dates(start_date, end_date)
+    clm_vars, nldas_vars = _get_variables(variables, snow, source)
     kwds = [
         {
             "params": {
@@ -331,7 +336,9 @@ def _byloc(
 
     clm_merged = (
         pd.concat(df)
-        for _, df in itertools.groupby(sorted(clm_list, key=lambda x: str(x.name)), lambda x: str(x.name))
+        for _, df in itertools.groupby(
+            sorted(clm_list, key=lambda x: str(x.name)), lambda x: str(x.name)
+        )
     )
     clm = pd.concat(clm_merged, axis=1)
     clm = clm.rename(columns={d["nldas_name"]: n for n, d in nldas_vars.items()})
@@ -435,7 +442,7 @@ def get_bycoords(
         source=source,
     )
 
-    _, _, nldas_vars = _check_inputs(start_date, end_date, variables, snow, source)
+    _, nldas_vars = _get_variables(variables, snow, source)
 
     clm_list = itertools.starmap(nldas, zip(points.x, points.y))
     if to_xarray:
@@ -555,7 +562,8 @@ def get_bygeom(
     xarray.Dataset
         The requested forcing data.
     """
-    dates, clm_vars, nldas_vars = _check_inputs(start_date, end_date, variables, snow, source)
+    dates = _get_dates(start_date, end_date)
+    clm_vars, nldas_vars = _get_variables(variables, snow, source)
 
     nldas_grid = get_grid_mask()
     geom = hgu.geo2polygon(geometry, geo_crs, nldas_grid.rio.crs)
