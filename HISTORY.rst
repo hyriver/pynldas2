@@ -2,12 +2,14 @@
 History
 =======
 
-0.15.2 (2023-0X-XX)
+0.15.2 (2023-09-22)
 -------------------
 
 Internal Changes
 ~~~~~~~~~~~~~~~~
 - Remove dependency on ``dask``.
+- Reduce complexity of the code by breaking down the ``_check_inputs``
+  function into ``_get_variables`` and ``_get_dates`` functions.
 
 0.15.1 (2023-07-10)
 -------------------
