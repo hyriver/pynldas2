@@ -1,4 +1,4 @@
-"""Tests for exceptions and requests"""
+"""Tests for exceptions and requests."""
 import pytest
 from shapely.geometry import Polygon
 
