@@ -206,6 +206,9 @@ testpaths = [
   "tests",
   "pynldas2"
 ]
+markers = [
+  "speedup: Tests that require numba",
+]
 
 [tool.coverage.report]
 exclude_lines = [
