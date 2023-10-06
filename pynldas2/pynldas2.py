@@ -34,7 +34,9 @@ except ImportError:
     T = TypeVar("T")
     Func = Callable[..., T]
 
-    def ngjit(signature_or_function: str | Func[T]) -> Callable[[Func[T]], Func[T]]:
+    def ngjit(
+        signature_or_function: str | Func[T], parallel: bool = False
+    ) -> Callable[[Func[T]], Func[T]]:
         def decorator_njit(func: Func[T]) -> Func[T]:
             @functools.wraps(func)
             def wrapper_decorator(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> T:
