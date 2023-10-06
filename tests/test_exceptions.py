@@ -1,6 +1,6 @@
 """Tests for exceptions and requests."""
 import pytest
-from shapely.geometry import Polygon
+from shapely import Polygon
 
 import pynldas2 as nldas
 from pynldas2 import InputRangeError, InputTypeError, InputValueError

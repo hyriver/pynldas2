@@ -6,37 +6,38 @@ import itertools
 import re
 import warnings
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, Sequence, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar, Union
 
-import async_retriever as ar
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pygeoutils as hgu
 import pyproj
 import xarray as xr
 from numpy.core._exceptions import UFuncTypeError
 from pandas.errors import EmptyDataError
 
+import async_retriever as ar
+import pygeoutils as hgu
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
 try:
     from numba import config as numba_config
-    from numba import njit, prange
+    from numba import jit, prange
 
-    ngjit = functools.partial(njit, cache=True, nogil=True)
+    ngjit = functools.partial(jit, nopython=True, cache=True, nogil=True)
     numba_config.THREADING_LAYER = "workqueue"  # pyright: ignore[reportGeneralTypeIssues]
     has_numba = True
 except ImportError:
     has_numba = False
     prange = range
-    numba_config = None
-    njit = None
 
-    def ngjit(ntypes, parallel=None):  # type: ignore
-        def decorator_njit(func):  # type: ignore
+    T = TypeVar("T")
+    Func = Callable[..., T]
+
+    def ngjit(signature_or_function: str | Func[T]) -> Callable[[Func[T]], Func[T]]:
+        def decorator_njit(func: Func[T]) -> Func[T]:
             @functools.wraps(func)
-            def wrapper_decorator(*args, **kwargs):  # type: ignore
+            def wrapper_decorator(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> T:
                 return func(*args, **kwargs)
 
             return wrapper_decorator
@@ -45,16 +46,15 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from shapely.geometry import MultiPolygon, Polygon
+    from shapely import MultiPolygon, Polygon
 
     DF = TypeVar("DF", pd.DataFrame, xr.Dataset)
+    CRSTYPE = Union[int, str, pyproj.CRS]
 
 # Default snow params from https://doi.org/10.5194/gmd-11-1077-2018
 T_RAIN = 2.5  # degC
 T_SNOW = 0.6  # degC
-CRSTYPE = Union[int, str, pyproj.CRS]
 URL = "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi"
-
 NLDAS_VARS_GRIB = {
     "prcp": {"nldas_name": "APCPsfc", "long_name": "Precipitation hourly total", "units": "mm"},
     "pet": {"nldas_name": "PEVAPsfc", "long_name": "Potential evaporation", "units": "mm"},
@@ -121,9 +121,9 @@ NLDAS_VARS_NETCDF = {
         "units": "m/s",
     },
 }
-
 DATE_COL = "Date&Time"
 DATE_FMT = "%Y-%m-%dT%H"
+
 __all__ = ["get_bycoords", "get_grid_mask", "get_bygeom"]
 
 
@@ -225,7 +225,7 @@ def separate_snow(clm: DF, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> DF
         raise InputTypeError("clm", "pandas.DataFrame or xarray.Dataset")
 
     if isinstance(clm, xr.Dataset):
-        return _snow_gridded(clm, t_rain + 273.15, t_snow + 273.15)  # type: ignore
+        return _snow_gridded(clm, t_rain + 273.15, t_snow + 273.15)
     return _snow_point(clm, t_rain + 273.15, t_snow + 273.15)
 
 
@@ -298,7 +298,7 @@ def _get_dates(
         raise InputRangeError("end_date", "after start_date")
 
     dates = pd.date_range(start, end, freq="10000D").tolist()
-    dates = dates + [end] if dates[-1] < end else dates
+    dates = [*dates, end] if dates[-1] < end else dates
     return dates
 
 

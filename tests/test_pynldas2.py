@@ -4,7 +4,7 @@ import os
 
 import numpy as np
 import pytest
-from shapely.geometry import Point, Polygon
+from shapely import Point, Polygon
 
 import pynldas2 as nldas
 
