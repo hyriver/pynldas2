@@ -66,7 +66,7 @@ def test_geom_box():
     assert_close(clm.prcp.mean(), 0.1534)
 
 
-@pytest.mark.speedup
+@pytest.mark.speedup()
 def test_snow():
     clm = nldas.get_bycoords(
         (-89.6, 48.3), "2000-01-01", "2000-01-02", crs=DEF_CRS, variables="prcp", snow=True
