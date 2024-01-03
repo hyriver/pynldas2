@@ -24,7 +24,7 @@ try:
     from numba import config as numba_config
     from numba import jit, prange
 
-    ngjit = functools.partial(jit, nopython=True, cache=True, nogil=True)
+    ngjit = functools.partial(jit, nopython=True, nogil=True)
     numba_config.THREADING_LAYER = "workqueue"  # pyright: ignore[reportGeneralTypeIssues]
     has_numba = True
 except ImportError:
@@ -34,9 +34,7 @@ except ImportError:
     T = TypeVar("T")
     Func = Callable[..., T]
 
-    def ngjit(
-        signature_or_function: str | Func[T], parallel: bool = False
-    ) -> Callable[[Func[T]], Func[T]]:
+    def ngjit(signature_or_function: str | Func[T]) -> Callable[[Func[T]], Func[T]]:
         def decorator_njit(func: Func[T]) -> Func[T]:
             @functools.wraps(func)
             def wrapper_decorator(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> T:
@@ -253,7 +251,7 @@ def _txt2df(
 
     data = data.drop(columns=DATE_COL)["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
-    return data
+    return data  # pyright: ignore[reportGeneralTypeIssues]
 
 
 def _get_variables(
@@ -291,10 +289,10 @@ def _get_dates(
 ) -> list[pd.Timestamp]:
     """Get dates."""
     start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date) + pd.Timedelta("1D")
+    end = pd.to_datetime(end_date) + pd.Timedelta("1D")  # pyright: ignore[reportGeneralTypeIssues]
     if start < pd.to_datetime("1979-01-01T13"):
         raise InputRangeError("start_date", "1979-01-01 to yesterday")
-    if end > pd.Timestamp.now() - pd.Timedelta("1D"):
+    if end > pd.Timestamp.now() - pd.Timedelta("1D"):  # pyright: ignore[reportGeneralTypeIssues]
         raise InputRangeError("end_date", "1979-01-01 to yesterday")
     if end <= start:
         raise InputRangeError("end_date", "after start_date")
@@ -342,8 +340,9 @@ def _byloc(
             sorted(clm_list, key=lambda x: str(x.name)), lambda x: str(x.name)
         )
     )
-    clm = pd.concat(clm_merged, axis=1)
-    clm = clm.rename(columns={d["nldas_name"]: n for n, d in nldas_vars.items()})
+    clm = pd.concat(clm_merged, axis=1).rename(
+        columns={d["nldas_name"]: n for n, d in nldas_vars.items()}
+    )
 
     if snow:
         params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
@@ -430,7 +429,7 @@ def get_bycoords(
     points = hgu.Coordinates(lons, lats, bounds).points
     n_pts = len(points)
     if n_pts == 0 or n_pts != len(lons):
-        raise InputRangeError("coords", f"{bounds}")
+        raise InputRangeError("coords", str(bounds))
 
     idx = list(coords_id) if coords_id is not None else [f"P{i}" for i in range(n_pts)]
     nldas = functools.partial(
@@ -509,12 +508,10 @@ def _txt2da(
     data = data["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
     data.index.name = "time"
-    data.index = data.index.tz_localize(None)
+    data.index = data.index.tz_localize(None)  # pyright: ignore[reportGeneralTypeIssues]
     da = data.to_xarray()
     lon, lat = kwds[resp_id]["params"]["location"].split("(")[-1].strip(")").split(",")
-    da = da.assign_coords(x=float(lon), y=float(lat))
-    da = da.expand_dims("y").expand_dims("x")
-    return da
+    return da.assign_coords(x=float(lon), y=float(lat)).expand_dims("y").expand_dims("x")
 
 
 def get_bygeom(
@@ -588,17 +585,21 @@ def get_bygeom(
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
 
     clm = xr.merge(_txt2da(txt, i, kwds, source=source) for i, txt in enumerate(resp))
-    clm = clm.rename({d["nldas_name"]: n for n, d in nldas_vars.items() if d["nldas_name"] in clm})
-    clm = clm.sel(time=slice(start_date, end_date))
+    clm = (
+        clm.rename({d["nldas_name"]: n for n, d in nldas_vars.items() if d["nldas_name"] in clm})
+        .sel(time=slice(start_date, end_date))
+        .transpose("time", "y", "x")
+    )
     clm.attrs["tz"] = "UTC"
-    clm = clm.transpose("time", "y", "x")
     for v in clm:
         clm[v].attrs = nldas_vars[str(v)]
-    clm = hgu.xd_write_crs(clm, 4326)
+    clm = hgu.xd_write_crs(clm, nldas_grid.rio.crs)
     if snow:
         params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
         clm = separate_snow(clm, **params)
-    if isinstance(geometry, (list, tuple)):
+    if isinstance(geometry, (list, tuple)) and pyproj.CRS(geo_crs) == pyproj.CRS(
+        nldas_grid.rio.crs
+    ):
         return clm
     clm = hgu.xarray_geomask(clm, geometry, geo_crs, all_touched=True)
     return clm
