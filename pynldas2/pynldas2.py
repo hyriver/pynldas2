@@ -6,7 +6,7 @@ import itertools
 import re
 import warnings
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, Any, Callable, Sequence, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, Sequence, TypeVar, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -233,7 +233,7 @@ def _txt2df(
     txt: str,
     resp_id: int,
     kwds: list[dict[str, dict[str, str]]],
-    source: str = "grib",
+    source: Literal["grib", "netcdf"],
 ) -> pd.Series:
     """Convert text to dataframe."""
     try:
@@ -255,9 +255,9 @@ def _txt2df(
 
 
 def _get_variables(
-    variables: str | list[str] | None = None,
-    snow: bool = False,
-    source: str = "grib",
+    variables: str | list[str] | None,
+    snow: bool,
+    source: Literal["grib", "netcdf"],
 ) -> tuple[list[str], dict[str, dict[str, str]]]:
     """Get variables."""
     if source == "grib":
@@ -307,11 +307,11 @@ def _byloc(
     lat: float,
     start_date: str,
     end_date: str,
-    variables: str | list[str] | None = None,
-    n_conn: int = 4,
-    snow: bool = False,
-    snow_params: dict[str, float] | None = None,
-    source: str = "grib",
+    variables: str | list[str] | None,
+    n_conn: int,
+    snow: bool,
+    snow_params: dict[str, float] | None,
+    source: Literal["grib", "netcdf"],
 ) -> pd.DataFrame:
     """Get NLDAS climate forcing data for a single location."""
     dates = _get_dates(start_date, end_date)
@@ -354,7 +354,7 @@ def _byloc(
 
 def _get_lon_lat(
     coords: list[tuple[float, float]] | tuple[float, float],
-    crs: CRSTYPE = 4326,
+    crs: CRSTYPE,
 ) -> tuple[list[float], list[float]]:
     """Get longitude and latitude from a list of coordinates."""
     try:
@@ -382,7 +382,7 @@ def get_bycoords(
     n_conn: int = 4,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
-    source: str = "grib",
+    source: Literal["grib", "netcdf"] = "grib",
 ) -> pd.DataFrame | xr.Dataset:
     """Get NLDAS climate forcing data for a list of coordinates.
 
@@ -415,8 +415,8 @@ def get_bycoords(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
-    source: str, optional
-        Source to pull data rods from. Valid sources are: ``grib`` and ``netcdf``
+    source: {"grib", "netcdf"}, optional
+        Source to pull data rods from. Valid sources are: ``grib`` and ``netcdf``.
 
     Returns
     -------
@@ -489,7 +489,7 @@ def _txt2da(
     txt: str,
     resp_id: int,
     kwds: list[dict[str, dict[str, str]]],
-    source: str = "grib",
+    source: Literal["grib", "netcdf"],
 ) -> xr.DataArray:
     """Convert text to dataarray."""
     try:
@@ -523,7 +523,7 @@ def get_bygeom(
     n_conn: int = 4,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
-    source: str = "grib",
+    source: Literal["grib", "netcdf"] = "grib",
 ) -> xr.Dataset:
     """Get hourly NLDAS climate forcing within a geometry at 0.125 resolution.
 
@@ -553,7 +553,7 @@ def get_bygeom(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
-    source: str, optional
+    source: {"grib", "netcdf"}, optional
         Source to pull data rods from. Valid sources are: ``grib`` and ``netcdf``.
 
     Returns
