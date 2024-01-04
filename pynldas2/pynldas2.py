@@ -274,9 +274,7 @@ def _get_variables(
     else:
         clm_vars = [variables] if isinstance(variables, str) else list(variables)
         if snow:
-            required_vars = ["temp", "prcp"]
-            if not all(v in clm_vars for v in required_vars):
-                clm_vars = list(set(clm_vars).union(required_vars))
+            clm_vars = list(set(clm_vars).union({"temp", "prcp"}))
         if any(v not in nldas_vars for v in clm_vars):
             raise InputValueError("variables", list(nldas_vars))
         clm_vars = [f"{source_tag}:{nldas_vars[v]['nldas_name']}" for v in clm_vars]
@@ -384,7 +382,7 @@ def get_bycoords(
     snow_params: dict[str, float] | None = None,
     source: Literal["grib", "netcdf"] = "grib",
 ) -> pd.DataFrame | xr.Dataset:
-    """Get NLDAS climate forcing data for a list of coordinates.
+    """Get NLDAS-2 climate forcing data for a list of coordinates.
 
     Parameters
     ----------
@@ -466,7 +464,7 @@ def get_bycoords(
 
 
 def get_grid_mask():
-    """Get the NLDAS2 grid that contains the land/water/soil/vegetation mask.
+    """Get the NLDAS-2 grid that contains the land/water/soil/vegetation mask.
 
     Returns
     -------
@@ -525,7 +523,7 @@ def get_bygeom(
     snow_params: dict[str, float] | None = None,
     source: Literal["grib", "netcdf"] = "grib",
 ) -> xr.Dataset:
-    """Get hourly NLDAS climate forcing within a geometry at 0.125 resolution.
+    """Get hourly NLDAS-2 climate forcing within a geometry at 0.125 resolution.
 
     Parameters
     ----------
@@ -583,7 +581,6 @@ def get_bygeom(
 
     n_conn = min(n_conn, 4)
     resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
-
     clm = xr.merge(_txt2da(txt, i, kwds, source=source) for i, txt in enumerate(resp))
     clm = (
         clm.rename({d["nldas_name"]: n for n, d in nldas_vars.items() if d["nldas_name"] in clm})
