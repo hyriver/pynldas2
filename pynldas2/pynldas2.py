@@ -22,10 +22,10 @@ from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError
 
 try:
     from numba import config as numba_config
-    from numba import jit, prange
+    from numba import njit, prange
 
-    ngjit = functools.partial(jit, nopython=True, nogil=True)
-    numba_config.THREADING_LAYER = "workqueue"  # pyright: ignore[reportGeneralTypeIssues]
+    ngjit = functools.partial(njit, nogil=True)
+    numba_config.THREADING_LAYER = "workqueue"
     has_numba = True
 except ImportError:
     has_numba = False
@@ -251,7 +251,7 @@ def _txt2df(
 
     data = data.drop(columns=DATE_COL)["Data"]
     data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
-    return data  # pyright: ignore[reportGeneralTypeIssues]
+    return data  # pyright: ignore[reportReturnType]
 
 
 def _get_variables(
@@ -297,7 +297,7 @@ def _get_dates(
 
     dates = pd.date_range(start, end, freq="10000D").tolist()
     dates = [*dates, end] if dates[-1] < end else dates
-    return dates
+    return dates  # pyright: ignore[reportReturnType]
 
 
 def _byloc(
