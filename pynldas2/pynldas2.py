@@ -238,10 +238,10 @@ def _txt2df(
     """Convert text to dataframe."""
     try:
         if source == "grib":
-            data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+            data = pd.read_csv(StringIO(txt), skiprows=39, sep='\s+').dropna()
             data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
         else:
-            data = pd.read_csv(StringIO(txt), skiprows=12, delim_whitespace=True).dropna()
+            data = pd.read_csv(StringIO(txt), skiprows=12, sep='\s+').dropna()
             data.index = pd.to_datetime(data[DATE_COL], utc=True)
     except EmptyDataError:
         return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
@@ -492,10 +492,10 @@ def _txt2da(
     """Convert text to dataarray."""
     try:
         if source == "grib":
-            data = pd.read_csv(StringIO(txt), skiprows=39, delim_whitespace=True).dropna()
+            data = pd.read_csv(StringIO(txt), skiprows=39, sep='\s+').dropna()
             data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
         else:
-            data = pd.read_csv(StringIO(txt), skiprows=12, delim_whitespace=True).dropna()
+            data = pd.read_csv(StringIO(txt), skiprows=12, sep='\s+').dropna()
             data.index = pd.to_datetime(data[DATE_COL], utc=True)
     except EmptyDataError:
         return xr.DataArray(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
