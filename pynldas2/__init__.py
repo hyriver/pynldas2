@@ -1,4 +1,7 @@
 """Top-level package."""
+
+from __future__ import annotations
+
 from importlib.metadata import PackageNotFoundError, version
 
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError

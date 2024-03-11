@@ -1,4 +1,7 @@
 """Tests for the package PyNLDAS2."""
+
+from __future__ import annotations
+
 import io
 import os
 
