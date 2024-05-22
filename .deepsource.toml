@@ -10,5 +10,5 @@ enabled = true
 name = "python"
 
 [analyzers.meta]
-max_line_length = 100
 runtime_version = "3.x.x"
+max_line_length = 100
