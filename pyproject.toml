@@ -218,7 +218,6 @@ filterwarnings = [
 ]
 testpaths = [
   "tests",
-  "src/pynldas2",
 ]
 markers = [
   "speedup: Tests that require numba>=0.57",
