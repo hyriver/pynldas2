@@ -1,8 +1,9 @@
 [build-system]
-build-backend = "setuptools.build_meta"
+build-backend = "hatchling.build"
+
 requires = [
-  "setuptools>=60",
-  "setuptools-scm>=8",
+  "hatch-vcs",
+  "hatchling",
 ]
 
 [project]
@@ -58,26 +59,13 @@ urls.CI = "https://github.com/hyriver/pynldas2/actions"
 urls.Homepage = "https://docs.hyriver.io/readme/pynldas2.html"
 urls.Issues = "https://github.com/hyriver/pynldas2/issues"
 
-[tool.setuptools]
-include-package-data = true
-license-files = [
-  "LICENSE",
-]
-platforms = [
-  "any",
-]
-zip-safe = false
+[tool.hatch.version]
+source = "vcs"
 
-[tool.setuptools.package-data]
-pynldas2 = [
-  "py.typed",
+[tool.hatch.build.targets.wheel]
+packages = [
+  "src/pynldas2",
 ]
-
-[tool.setuptools.packages]
-find = { namespaces = false }
-
-[tool.setuptools_scm]
-fallback_version = "999"
 
 [tool.black]
 lint.extend-safe-fixes = [
@@ -230,7 +218,7 @@ filterwarnings = [
 ]
 testpaths = [
   "tests",
-  "pynldas2",
+  "src/pynldas2",
 ]
 markers = [
   "speedup: Tests that require numba>=0.57",
@@ -251,7 +239,7 @@ omit = [
 ]
 parallel = true
 source = [
-  'pynldas2',
+  'src/pynldas2',
 ]
 
 [tool.pyright]
@@ -262,7 +250,7 @@ exclude = [
   "tests/",
 ]
 include = [
-  "pynldas2",
+  "src/pynldas2",
 ]
 reportMissingTypeStubs = false
 reportUnknownArgumentType = false
