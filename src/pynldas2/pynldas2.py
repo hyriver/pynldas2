@@ -14,7 +14,6 @@ import numpy.typing as npt
 import pandas as pd
 import pyproj
 import xarray as xr
-from numpy.core._exceptions import UFuncTypeError
 from pandas.errors import EmptyDataError
 
 import async_retriever as ar
@@ -22,11 +21,16 @@ import pygeoutils as hgu
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
 try:
+    from numpy.core._exceptions import UFuncTypeError
+except ImportError:
+    UFuncTypeError = TypeError
+
+try:
     from numba import config as numba_config
     from numba import njit, prange
 
     ngjit = functools.partial(njit, nogil=True)
-    numba_config.THREADING_LAYER = "workqueue"
+    numba_config.THREADING_LAYER = "workqueue"  # pyright: ignore[reportAttributeAccessIssue]
     has_numba = True
 except ImportError:
     has_numba = False
