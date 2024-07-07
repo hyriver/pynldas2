@@ -21,7 +21,7 @@ import pygeoutils as hgu
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
 try:
-    from numpy.core._exceptions import UFuncTypeError
+    from numpy.core._exceptions import UFuncTypeError  # pyright: ignore[reportMissingImports]
 except ImportError:
     UFuncTypeError = TypeError
 
