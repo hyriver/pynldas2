@@ -6,7 +6,7 @@ import pytest
 from shapely import Polygon
 
 import pynldas2 as nldas
-from pynldas2 import InputRangeError, InputTypeError, InputValueError
+from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError
 
 GEOM = Polygon(
     [[-69.77, 45.07], [-69.31, 45.07], [-69.31, 45.45], [-69.77, 45.45], [-69.77, 45.07]]
