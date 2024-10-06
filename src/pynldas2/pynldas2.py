@@ -7,7 +7,7 @@ import itertools
 import re
 import warnings
 from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, Any, Callable, Literal, Sequence, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, Union
 
 import numpy as np
 import numpy.typing as npt
@@ -21,7 +21,7 @@ import pygeoutils as hgu
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
 try:
-    from numpy.core._exceptions import UFuncTypeError  # pyright: ignore[reportMissingImports]
+    from numpy._core._exceptions import UFuncTypeError
 except ImportError:
     UFuncTypeError = TypeError
 
@@ -30,7 +30,7 @@ try:
     from numba import njit, prange
 
     ngjit = functools.partial(njit, nogil=True)
-    numba_config.THREADING_LAYER = "workqueue"  # pyright: ignore[reportAttributeAccessIssue]
+    numba_config.THREADING_LAYER = "workqueue"
     has_numba = True
 except ImportError:
     has_numba = False
@@ -39,7 +39,7 @@ except ImportError:
     T = TypeVar("T")
     Func = Callable[..., T]
 
-    def ngjit(signature_or_function: str | Func[T]) -> Callable[[Func[T]], Func[T]]:
+    def ngjit(_: str | Func[T]) -> Callable[[Func[T]], Func[T]]:
         def decorator_njit(func: Func[T]) -> Func[T]:
             @functools.wraps(func)
             def wrapper_decorator(*args: tuple[Any, ...], **kwargs: dict[str, Any]) -> T:
@@ -51,6 +51,8 @@ except ImportError:
 
 
 if TYPE_CHECKING:
+    from collections.abc import Sequence
+
     from shapely import MultiPolygon, Polygon
 
     DF = TypeVar("DF", pd.DataFrame, xr.Dataset)
@@ -292,10 +294,10 @@ def _get_dates(
 ) -> list[pd.Timestamp]:
     """Get dates."""
     start = pd.to_datetime(start_date)
-    end = pd.to_datetime(end_date) + pd.Timedelta("1D")  # pyright: ignore[reportGeneralTypeIssues]
+    end = pd.to_datetime(end_date) + pd.Timedelta("1D")
     if start < pd.to_datetime("1979-01-01T13"):
         raise InputRangeError("start_date", "1979-01-01 to yesterday")
-    if end > pd.Timestamp.now() - pd.Timedelta("1D"):  # pyright: ignore[reportGeneralTypeIssues]
+    if end > pd.Timestamp.now() - pd.Timedelta("1D"):  # pyright: ignore[reportOperatorIssue]
         raise InputRangeError("end_date", "1979-01-01 to yesterday")
     if end <= start:
         raise InputRangeError("end_date", "after start_date")
@@ -362,7 +364,7 @@ def _get_lon_lat(
     """Get longitude and latitude from a list of coordinates."""
     try:
         coords_list = hgu.coords_list(coords)
-    except hgu.InputTypeError as ex:
+    except hgu.exceptions.InputTypeError as ex:
         raise InputTypeError("coords", "tuple of length 2 or list of tuples") from ex
 
     xx, yy = zip(*coords_list)
@@ -435,11 +437,14 @@ def get_bycoords(
         raise InputRangeError("coords", str(bounds))
 
     idx = list(coords_id) if coords_id is not None else [f"P{i}" for i in range(n_pts)]
+    if len(idx) != n_pts:
+        raise InputValueError("coords_id", "same length as coords")
+
     nldas = functools.partial(
         _byloc,
-        variables=variables,
         start_date=start_date,
         end_date=end_date,
+        variables=variables,
         n_conn=n_conn,
         snow=snow,
         snow_params=snow_params,
