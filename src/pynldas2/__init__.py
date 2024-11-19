@@ -14,10 +14,10 @@ except PackageNotFoundError:
     __version__ = "999"
 
 __all__ = [
-    "get_bycoords",
-    "get_grid_mask",
-    "get_bygeom",
-    "show_versions",
-    "exceptions",
     "__version__",
+    "exceptions",
+    "get_bycoords",
+    "get_bygeom",
+    "get_grid_mask",
+    "show_versions",
 ]

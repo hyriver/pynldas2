@@ -131,7 +131,7 @@ NLDAS_VARS_NETCDF = {
 DATE_COL = "Date&Time"
 DATE_FMT = "%Y-%m-%dT%H"
 
-__all__ = ["get_bycoords", "get_grid_mask", "get_bygeom"]
+__all__ = ["get_bycoords", "get_bygeom", "get_grid_mask"]
 
 
 @ngjit("f8[::1](f8[::1], f8[::1], f8, f8)")
