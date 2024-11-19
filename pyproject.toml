@@ -87,6 +87,8 @@ lint.select = [
   "E",
   # pyflakes
   "F",
+  # refurb
+  "FURB",
   # isort
   "I",
   # flake8-gettext
