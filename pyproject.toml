@@ -46,13 +46,12 @@ dependencies = [
   "rioxarray>=0.11",
   "xarray>=2023.1",
 ]
-optional-dependencies.speedup = [
+optional-dependencies.jit = [
   "numba>=0.57",
 ]
 optional-dependencies.test = [
   "pytest-cov",
   "pytest-sugar",
-  "pytest-xdist[psutil]",
 ]
 urls.Changelog = "https://docs.hyriver.io/changelogs/pynldas2.html"
 urls.CI = "https://github.com/hyriver/pynldas2/actions"
@@ -204,10 +203,7 @@ ignore-words-list = "gage,gages,paramss,trough"
 addopts = [
   "--import-mode=importlib",
   "--doctest-modules",
-  "-n=auto",
   "-v",
-  "--cov",
-  "--junitxml=junit.xml",
   "--durations=5",
 ]
 doctest_optionflags = 'NORMALIZE_WHITESPACE IGNORE_EXCEPTION_DETAIL NUMBER'
@@ -223,7 +219,7 @@ testpaths = [
   "tests",
 ]
 markers = [
-  "speedup: Tests that require numba>=0.57",
+  "jit: Tests that require numba>=0.57",
 ]
 
 [tool.coverage.report]
@@ -235,24 +231,21 @@ ignore_errors = true
 
 [tool.coverage.paths]
 source = [ "src", "*/site-packages" ]
-omit = [
-  "**/__init__.py",
-  "**/print_versions.py",
-]
 
 [tool.coverage.run]
 branch = true
 parallel = true
-source = [
+source_pkgs = [
   "pynldas2",
+]
+omit = [
+  "**/__init__.py",
 ]
 
 [tool.pyright]
 exclude = [
-  ".nox/",
   "**/__pycache__",
   "**/__init__.py",
-  "tests/",
 ]
 include = [
   "src/pynldas2",
