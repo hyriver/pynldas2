@@ -37,7 +37,8 @@ dynamic = [
   "version",
 ]
 dependencies = [
-  "async-retriever",
+  "aiofiles",
+  "aiohttp>=3.8.3",
   "netcdf4",
   "numpy>=2",
   "pandas>=1",
