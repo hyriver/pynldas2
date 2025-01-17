@@ -52,7 +52,7 @@ def test_coords_type():
 def test_coords_type_len():
     with pytest.raises(InputTypeError) as ex:
         _ = nldas.get_bycoords(COORDS + COORDS, START, END, crs=ALT_CRS, variables=VAR)
-    assert "length 2" in str(ex.value)
+    assert "The coords argument" in str(ex.value)
 
 
 def test_coords_var():
