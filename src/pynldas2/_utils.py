@@ -23,10 +23,10 @@ from pynldas2.exceptions import DownloadError, InputRangeError, InputTypeError
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-    from shapely.geometry.base import BaseGeometry
+    from shapely import Polygon
 
     CRSType = int | str | pyproj.CRS
-    PolyType = Polygon | MultiPolygon | tuple[float, float, float, float]
+    PolyType = Polygon | tuple[float, float, float, float]
     Number = int | float | np.number
 
 __all__ = [
@@ -73,7 +73,7 @@ def transform_coords(
     return list(zip(x_proj, y_proj))
 
 
-def _geo_transform(geom: BaseGeometry, in_crs: CRSType, out_crs: CRSType) -> BaseGeometry:
+def _geo_transform(geom: Polygon, in_crs: CRSType, out_crs: CRSType) -> Polygon:
     """Transform a geometry from one CRS to another."""
     project = TransformerFromCRS(in_crs, out_crs, always_xy=True).transform
     return ops.transform(project, geom)
@@ -93,10 +93,10 @@ def validate_coords(
 
 
 def to_geometry(
-    geometry: BaseGeometry | tuple[float, float, float, float],
+    geometry: Polygon | tuple[float, float, float, float],
     geo_crs: CRSType | None = None,
     crs: CRSType | None = None,
-) -> BaseGeometry:
+) -> Polygon:
     """Return a Shapely geometry and optionally transformed to a new CRS.
 
     Parameters
@@ -110,7 +110,7 @@ def to_geometry(
 
     Returns
     -------
-    shapely.geometry.base.BaseGeometry
+    shapely.Polygon
         A shapely geometry object.
     """
     is_geom = np.atleast_1d(shapely.is_geometry(geometry))
@@ -130,7 +130,7 @@ def to_geometry(
 
 def clip_dataset(
     ds: xr.Dataset,
-    geometry: Polygon | MultiPolygon | tuple[float, float, float, float],
+    geometry: Polygon | tuple[float, float, float, float],
     crs: CRSType,
 ) -> xr.Dataset:
     """Mask a ``xarray.Dataset`` based on a geometry."""
@@ -139,7 +139,7 @@ def clip_dataset(
     geom = to_geometry(geometry, crs, ds.rio.crs)
     try:
         ds = ds.rio.clip_box(*geom.bounds, auto_expand=True)
-        if isinstance(geometry, (Polygon, MultiPolygon)):
+        if isinstance(geometry, Polygon):
             ds = ds.rio.clip([geom], all_touched=True)
     except OneDimensionalRaster:
         ds = ds.rio.clip([geom], all_touched=True)

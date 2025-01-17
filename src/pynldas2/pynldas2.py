@@ -441,7 +441,7 @@ def _txt2da(
 
 
 def get_bygeom(
-    geometry: Polygon | MultiPolygon | tuple[float, float, float, float],
+    geometry: Polygon | tuple[float, float, float, float],
     start_date: str,
     end_date: str,
     geo_crs: CRSType = 4326,
@@ -453,8 +453,9 @@ def get_bygeom(
 
     Parameters
     ----------
-    geometry : shapely.Polygon, shapely.MultiPolygon, or tuple of length 4
-        Input polygon or a bounding box like so (xmin, ymin, xmax, ymax).
+    geometry : Polygon or tuple
+        The geometry of the region of interest. It can be a shapely Polygon or a tuple
+        of length 4 representing the bounding box (minx, miny, maxx, maxy).
     start_date : str
         Start date of the data.
     end_date : str
