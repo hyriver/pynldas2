@@ -37,17 +37,17 @@ dynamic = [
   "version",
 ]
 dependencies = [
-  "async-retriever>=0.18,<0.19",
-  "h5netcdf",
+  "async-retriever",
+  "netcdf4",
   "numpy>=2",
   "pandas>=1",
-  "pygeoutils>=0.18,<0.19",
   "pyproj>=3.0.1",
-  "rioxarray>=0.11",
-  "xarray>=2023.1",
+  "rioxarray>=0.15",
+  "shapely>=2",
+  "xarray>=2024.7",
 ]
 optional-dependencies.jit = [
-  "numba>=0.57",
+  "numba>=0.60",
 ]
 optional-dependencies.test = [
   "pytest-cov",
@@ -176,14 +176,12 @@ lint.per-file-ignores."tests/*.py" = [
   "S101",
 ]
 lint.extend-safe-fixes = [
-  # Move third-party import
-  "TC002",
-  # Move import out of type-checking block
-  "TC004",
-  # absolute imports
-  "TID252",
   # break down assert
   "PT018",
+  # move imports
+  "TC",
+  # absolute imports
+  "TID252",
 ]
 lint.isort.known-first-party = [
   "async_retriever",
