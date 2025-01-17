@@ -3,22 +3,26 @@ from __future__ import annotations
 import asyncio
 import contextlib
 import sys
-from typing import TYPE_CHECKING, Sequence
+from typing import TYPE_CHECKING
 
-from aiohttp import TCPConnector
-from aiohttp_client_cache import CachedSession
-from aiohttp.client_exceptions import ClientResponseError
+import aiofiles
+from aiohttp import ClientSession, ClientTimeout, TCPConnector
+
+if TYPE_CHECKING:
+    from collections.abc import Sequence
+    from pathlib import Path
+
+__all__ = ["stream_write"]
+CHUNK_SIZE = 1024 * 1024  # Default chunk size of 1 MB
+MAX_HOSTS = 5  # Maximum connections to a single host (rate-limited service)
+TIMEOUT = 10 * 60  # Timeout for requests in seconds
 
 if sys.platform == "win32":  # pragma: no cover
     asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
 
-__all__ = ["fetch_binary"]
-CHUNK_SIZE = 1024 * 1024  # Default chunk size of 1 MB
-MAX_HOSTS = 5  # Maximum connections to a single host (rate-limited service)
-TIMEOUT = 30  # Timeout for requests in seconds
 
-class FetchError(Exception):
-    """Exception raised for fetch errors."""
+class ServiceError(Exception):
+    """Exception raised for download errors."""
 
     def __init__(self, err: str, url: str | None = None) -> None:
         self.message = (
@@ -29,20 +33,30 @@ class FetchError(Exception):
     def __str__(self) -> str:
         return self.message
 
-async def _fetch_content(session: CachedSession, url: str) -> bytes:
-    """Fetch the binary content of a URL."""
-    try:
-        async with session.get(url) as response:
-            return await response.read()
-    except (ClientResponseError, ValueError) as ex:
-        raise FetchError(await response.text(), str(response.url)) from ex
 
-async def _fetch_session(urls: Sequence[str]) -> list[bytes]:
-    """Fetch binary content concurrently."""
-    async with CachedSession(connector=TCPConnector(limit_per_host=MAX_HOSTS), raise_for_status=True, timeout=TIMEOUT) as session:
-        tasks = [_fetch_content(session, url) for url in urls]
-        results = await asyncio.gather(*tasks)
-        return results
+async def _stream_file(session: ClientSession, url: str, filepath: Path) -> None:
+    """Stream the response to a file, skipping if already downloaded."""
+    async with session.get(url) as response:
+        if response.status != 200:
+            raise ServiceError(await response.text(), str(response.url))
+        remote_size = int(response.headers.get("Content-Length", -1))
+        if filepath.exists() and filepath.stat().st_size == remote_size:
+            return
+
+        async with aiofiles.open(filepath, "wb") as file:
+            async for chunk in response.content.iter_chunked(CHUNK_SIZE):
+                await file.write(chunk)
+
+
+async def _stream_session(urls: Sequence[str], files: Sequence[Path]) -> None:
+    """Download files concurrently."""
+    async with ClientSession(
+        connector=TCPConnector(limit_per_host=MAX_HOSTS),
+        timeout=ClientTimeout(TIMEOUT),
+    ) as session:
+        tasks = [_stream_file(session, url, filepath) for url, filepath in zip(urls, files)]
+        await asyncio.gather(*tasks)
+
 
 def _get_or_create_event_loop() -> tuple[asyncio.AbstractEventLoop, bool]:
     """Retrieve or create an event loop."""
@@ -52,23 +66,17 @@ def _get_or_create_event_loop() -> tuple[asyncio.AbstractEventLoop, bool]:
     asyncio.set_event_loop(new_loop)
     return new_loop, True
 
-def fetch_binary(urls: Sequence[str]) -> list[bytes]:
-    """Fetch binary content of multiple URLs concurrently.
 
-    Parameters
-    ----------
-    urls : Sequence[str]
-        Immutable list of URLs to fetch.
+def stream_write(urls: Sequence[str], file_paths: Sequence[Path]) -> None:
+    """Download multiple files concurrently by streaming their content to disk."""
+    parent_dirs = {filepath.parent for filepath in file_paths}
+    for parent_dir in parent_dirs:
+        parent_dir.mkdir(parents=True, exist_ok=True)
 
-    Returns
-    -------
-    list[bytes]
-        List of binary content for each URL.
-    """
     loop, is_new_loop = _get_or_create_event_loop()
 
     try:
-        return loop.run_until_complete(_fetch_session(urls))
+        loop.run_until_complete(_stream_session(urls, file_paths))
     finally:
         if is_new_loop:
             loop.close()
