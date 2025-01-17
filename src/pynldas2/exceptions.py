@@ -8,6 +8,14 @@ if TYPE_CHECKING:
     from collections.abc import Generator, Sequence
 
 
+class DownloadError(Exception):
+    """Error raised when download fails."""
+
+    def __init__(self, url: str, err_msg: Exception) -> None:
+        message = f"Failed to download from {url}:\n{err_msg}"
+        super().__init__(message)
+
+
 class NLDASServiceError(Exception):
     """Exception raised when NLDAS2 web service returns an error."""
 

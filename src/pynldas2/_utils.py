@@ -2,79 +2,46 @@
 
 from __future__ import annotations
 
-import atexit
-import hashlib
-import re
 import os
-from collections.abc import Generator, Iterable, Sequence
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from collections.abc import Iterable, Sequence
 from functools import lru_cache
-from io import BytesIO
-from itertools import islice
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, cast
-from urllib.parse import parse_qs, urlparse
+from typing import TYPE_CHECKING
+from urllib.error import HTTPError
+from urllib.request import urlretrieve
 
 import numpy as np
 import pyproj
 import shapely
-import urllib3
+import xarray as xr
 from pyproj import Transformer
 from pyproj.exceptions import CRSError as ProjCRSError
-from rasterio.enums import MaskFlags, Resampling
-from rasterio.transform import rowcol
-import xarray as xr
-from rasterio.windows import Window
 from rioxarray.exceptions import OneDimensionalRaster
-from shapely import MultiPolygon, Polygon, STRtree, ops
-from shapely.geometry import shape
-from urllib3.exceptions import HTTPError
+from shapely import MultiPolygon, Polygon, ops
 
 from pynldas2.exceptions import DownloadError, InputRangeError, InputTypeError
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-    from rasterio.io import DatasetReader
     from shapely.geometry.base import BaseGeometry
 
-    CRSTYPE = int | str | pyproj.CRS
-    POLYTYPE = Polygon | MultiPolygon | tuple[float, float, float, float]
-    NUMBER = int | float | np.number
+    CRSType = int | str | pyproj.CRS
+    PolyType = Polygon | MultiPolygon | tuple[float, float, float, float]
+    Number = int | float | np.number
 
 __all__ = [
     "clip_dataset",
     "get_grid_mask",
-    "download_files",
     "to_geometry",
     "transform_coords",
     "validate_coords",
     "validate_crs",
-    "extract_info",
 ]
 
 TransformerFromCRS = lru_cache(Transformer.from_crs)
-HTTPSPool = urllib3.HTTPSConnectionPool(
-    "hydro1.gesdisc.eosdis.nasa.gov",
-    maxsize=10,
-    block=True,
-    retries=urllib3.Retry(
-        total=5,
-        backoff_factor=0.5,
-        status_forcelist=[500, 502, 504],
-        allowed_methods=["HEAD", "GET"],
-    ),
-)
 
 
-def _cleanup_https_pool():
-    """Cleanup the HTTPS connection pool."""
-    HTTPSPool.close()
-
-
-atexit.register(_cleanup_https_pool)
-
-
-def validate_crs(crs: CRSTYPE) -> str:
+def validate_crs(crs: CRSType) -> str:
     """Validate a CRS.
 
     Parameters
@@ -94,7 +61,7 @@ def validate_crs(crs: CRSTYPE) -> str:
 
 
 def transform_coords(
-    coords: Sequence[tuple[float, float]], in_crs: CRSTYPE, out_crs: CRSTYPE
+    coords: Sequence[tuple[float, float]], in_crs: CRSType, out_crs: CRSType
 ) -> list[tuple[float, float]]:
     """Transform coordinates from one CRS to another."""
     try:
@@ -106,7 +73,7 @@ def transform_coords(
     return list(zip(x_proj, y_proj))
 
 
-def _geo_transform(geom: BaseGeometry, in_crs: CRSTYPE, out_crs: CRSTYPE) -> BaseGeometry:
+def _geo_transform(geom: BaseGeometry, in_crs: CRSType, out_crs: CRSType) -> BaseGeometry:
     """Transform a geometry from one CRS to another."""
     project = TransformerFromCRS(in_crs, out_crs, always_xy=True).transform
     return ops.transform(project, geom)
@@ -127,8 +94,8 @@ def validate_coords(
 
 def to_geometry(
     geometry: BaseGeometry | tuple[float, float, float, float],
-    geo_crs: CRSTYPE | None = None,
-    crs: CRSTYPE | None = None,
+    geo_crs: CRSType | None = None,
+    crs: CRSType | None = None,
 ) -> BaseGeometry:
     """Return a Shapely geometry and optionally transformed to a new CRS.
 
@@ -161,73 +128,10 @@ def to_geometry(
     raise InputTypeError("geo_crs/crs", "either both None or both valid CRS")
 
 
-def _download(url: str, fname: Path) -> None:
-    """Download a file from a URL."""
-    parsed_url = urlparse(url)
-    path = f"{parsed_url.path}?{parsed_url.query}"
-    try:
-        head = HTTPSPool.request("HEAD", path)
-    except urllib3.exceptions.HTTPError as e:
-        raise DownloadError(url, f"Failed HEAD request: {e}") from e
-    fsize = int(head.headers.get("Content-Length", -1))
-    if fname.exists() and fname.stat().st_size == fsize:
-        return
-    fname.unlink(missing_ok=True)
-    fname.write_text(HTTPSPool.request("GET", path).data.decode())
-
-
-def _get_loc(query: str) -> tuple[float, float]:
-    """Extract longitude and latitude."""
-    match = re.match(r"GEOM:POINT\(([-\d.]+), ([-\d.]+)\)", query)
-    if match:
-        lon, lat = map(float, match.groups())
-        return lon, lat
-    raise ValueError("Input string is not in the expected format")
-
-
-def _get_prefix(url: str) -> str:
-    """Get the file prefix for creating a unique filename from a URL."""
-    query = urlparse(url).query
-    var = parse_qs(query).get("variable", ["var"])[0].split(":")[-1]
-    loc = parse_qs(query).get("location", ["GEOM:POINT"])[0]
-    lon, lat = _get_loc(loc)
-    return f"{lon}_{lat}_{var}"
-
-
-def download_files(url_list: list[str], rewrite: bool = False) -> list[Path]:
-    """Download multiple files concurrently."""
-    hr_cache = os.getenv("HYRIVER_CACHE_NAME")
-    cache_dir = Path(hr_cache).parent if hr_cache else Path("cache")
-    cache_dir.mkdir(exist_ok=True, parents=True)
-
-    file_list = [
-        Path(cache_dir, f"{_get_prefix(url)}_{hashlib.sha256(url.encode()).hexdigest()}.txt")
-        for url in url_list
-    ]
-
-    if rewrite:
-        _ = [f.unlink(missing_ok=True) for f in file_list]
-    max_workers = min(4, os.cpu_count() or 1, len(url_list))
-    if max_workers == 1:
-        _ = [_download(url, path) for url, path in zip(url_list, file_list)]
-        return file_list
-
-    with ThreadPoolExecutor(max_workers=max_workers) as executor:
-        future_to_url = {
-            executor.submit(_download, url, path): url for url, path in zip(url_list, file_list)
-        }
-        for future in as_completed(future_to_url):
-            try:
-                future.result()
-            except Exception as e:  # noqa: PERF203
-                raise DownloadError(future_to_url[future], e) from e
-    return file_list
-
-
 def clip_dataset(
     ds: xr.Dataset,
     geometry: Polygon | MultiPolygon | tuple[float, float, float, float],
-    crs: CRSTYPE,
+    crs: CRSType,
 ) -> xr.Dataset:
     """Mask a ``xarray.Dataset`` based on a geometry."""
     attrs = {v: ds[v].attrs for v in ds}
@@ -268,31 +172,12 @@ def get_grid_mask(save_dir: str | Path | None = None) -> xr.Dataset:
     nc_path = save_dir / Path(url).name
     if nc_path.exists():
         return xr.open_dataset(nc_path, decode_coords="all")
-
     try:
-        resp = urllib3.request(
-            "GET",
-            url,
-            retries=urllib3.Retry(
-                total=5,
-                backoff_factor=0.5,
-                status_forcelist=[500, 502, 504],
-                allowed_methods=["GET"],
-            ),
-        )
-    except HTTPError as e:
-        raise DownloadError(url, e) from e
-    grid = xr.open_dataset(BytesIO(resp.data)).rio.write_crs(4326)
+        urlretrieve(url, nc_path)
+    except HTTPError as ex:
+        raise DownloadError(url, str(ex)) from ex
+    with xr.open_dataset(nc_path) as ds:
+        grid = ds.rio.write_crs(4326).load()
+    nc_path.unlink()
     grid.to_netcdf(nc_path)
     return grid
-
-
-def extract_info(file_path: Path) -> tuple[float, float, str]:
-    """Extract variable names from file stems."""
-    pattern = re.compile(r"[-\d.]+_[\d.]+_([A-Za-z0-9_]+)_")
-    stem = file_path.stem
-    match = pattern.search(stem)
-    lon, lat = map(float, stem.split("_")[:2])
-    if match:
-        return lon, lat, match.group(1)
-    raise ValueError(f"Invalid file format: {file_path}")

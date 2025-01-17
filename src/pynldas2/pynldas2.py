@@ -3,21 +3,23 @@
 from __future__ import annotations
 
 import functools
+import hashlib
 import itertools
+import os
 import re
 import warnings
-from io import BytesIO, StringIO
-from typing import TYPE_CHECKING, Any, Callable, Literal, TypeVar, Union
+from pathlib import Path
+from typing import TYPE_CHECKING, Any, Callable, TypeVar, Union
+from urllib.parse import urlencode
 
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import pyproj
 import xarray as xr
 from pandas.errors import EmptyDataError
 
-import async_retriever as ar
-import pygeoutils as hgu
+import pynldas2._utils as utils
+from pynldas2._streaming import stream_write
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
 try:
@@ -51,49 +53,20 @@ except ImportError:
 
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
+    from collections.abc import Iterable, Sequence
 
+    import pyproj
     from shapely import MultiPolygon, Polygon
 
     DF = TypeVar("DF", pd.DataFrame, xr.Dataset)
-    CRSTYPE = Union[int, str, pyproj.CRS]
+    CRSType = Union[int, str, pyproj.CRS]
 
 # Default snow params from https://doi.org/10.5194/gmd-11-1077-2018
 T_RAIN = 2.5  # degC
 T_SNOW = 0.6  # degC
 URL = "https://hydro1.gesdisc.eosdis.nasa.gov/daac-bin/access/timeseries.cgi"
-NLDAS_VARS_GRIB = {
-    "prcp": {"nldas_name": "APCPsfc", "long_name": "Precipitation hourly total", "units": "mm"},
-    "pet": {"nldas_name": "PEVAPsfc", "long_name": "Potential evaporation", "units": "mm"},
-    "temp": {"nldas_name": "TMP2m", "long_name": "2-m above ground temperature", "units": "K"},
-    "wind_u": {
-        "nldas_name": "UGRD10m",
-        "long_name": "10-m above ground zonal wind",
-        "units": "m/s",
-    },
-    "wind_v": {
-        "nldas_name": "VGRD10m",
-        "long_name": "10-m above ground meridional wind",
-        "units": "m/s",
-    },
-    "rlds": {
-        "nldas_name": "DLWRFsfc",
-        "long_name": "Surface DW longwave radiation flux",
-        "units": "W/m^2",
-    },
-    "rsds": {
-        "nldas_name": "DSWRFsfc",
-        "long_name": "Surface DW shortwave radiation flux",
-        "units": "W/m^2",
-    },
-    "humidity": {
-        "nldas_name": "SPFH2m",
-        "long_name": "2-m above ground specific humidity",
-        "units": "kg/kg",
-    },
-}
 
-NLDAS_VARS_NETCDF = {
+NLDAS2_VARS = {
     "prcp": {"nldas_name": "Rainf", "long_name": "Total precipitation", "units": "kg/m^2"},
     "rlds": {
         "nldas_name": "LWdown",
@@ -131,7 +104,7 @@ NLDAS_VARS_NETCDF = {
 DATE_COL = "Date&Time"
 DATE_FMT = "%Y-%m-%dT%H"
 
-__all__ = ["get_bycoords", "get_bygeom", "get_grid_mask"]
+__all__ = ["get_bycoords", "get_bygeom"]
 
 
 @ngjit("f8[::1](f8[::1], f8[::1], f8, f8)")
@@ -236,56 +209,42 @@ def separate_snow(clm: DF, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> DF
     return _snow_point(clm, t_rain + 273.15, t_snow + 273.15)
 
 
-def _txt2df(
-    txt: str,
-    resp_id: int,
-    kwds: list[dict[str, dict[str, str]]],
-    source: Literal["grib", "netcdf"],
-) -> pd.Series:
+def _txt2df(name: str, txt_file: Path) -> pd.Series:
     """Convert text to dataframe."""
     try:
-        if source == "grib":
-            data = pd.read_csv(StringIO(txt), skiprows=39, sep=r"\s+").dropna()
-            data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
-        else:
-            data = pd.read_csv(StringIO(txt), skiprows=12, sep=r"\s+").dropna()
-            data.index = pd.to_datetime(data[DATE_COL], utc=True)
+        data = pd.read_csv(txt_file, skiprows=12, sep=r"\s+").dropna()
+        data.index = pd.to_datetime(data[DATE_COL], utc=True)
     except EmptyDataError:
-        return pd.Series(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
+        return pd.Series(name=name)
     except UFuncTypeError as ex:
-        msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
+        msg = "".join(re.findall("<strong>(.*?)</strong>", txt_file.read_text(), re.DOTALL)).strip()
         raise NLDASServiceError(msg) from ex
 
-    data = data.drop(columns=DATE_COL)["Data"]
-    data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
-    return data  # pyright: ignore[reportReturnType]
+    data = data["Data"]
+    data.name = name
+    data.index.name = "time"
+    data.index = pd.to_datetime(data.index).tz_localize(None)
+    return data
 
 
 def _get_variables(
-    variables: str | list[str] | None,
-    snow: bool,
-    source: Literal["grib", "netcdf"],
-) -> tuple[list[str], dict[str, dict[str, str]]]:
+    variables: str | list[str] | None, snow: bool
+) -> tuple[tuple[str, ...], tuple[str, ...]]:
     """Get variables."""
-    if source == "grib":
-        source_tag = "NLDAS:NLDAS_FORA0125_H.002"
-        nldas_vars = NLDAS_VARS_GRIB
-    elif source == "netcdf":
-        source_tag = "NLDAS2:NLDAS_FORA0125_H_v2.0"
-        nldas_vars = NLDAS_VARS_NETCDF
-    else:
-        raise InputValueError("source", ["grib", "netcdf"])
-
+    source_tag = "NLDAS2:NLDAS_FORA0125_H_v2.0"
     if variables is None:
-        clm_vars = [f"{source_tag}:{d['nldas_name']}" for d in nldas_vars.values()]
+        url_vars = tuple(f"{source_tag}:{d['nldas_name']}" for d in NLDAS2_VARS.values())
+        clm_vars = tuple(NLDAS2_VARS)
     else:
-        clm_vars = [variables] if isinstance(variables, str) else list(variables)
+        url_vars = [variables] if isinstance(variables, str) else list(variables)
         if snow:
-            clm_vars = list(set(clm_vars).union({"temp", "prcp"}))
-        if any(v not in nldas_vars for v in clm_vars):
-            raise InputValueError("variables", list(nldas_vars))
-        clm_vars = [f"{source_tag}:{nldas_vars[v]['nldas_name']}" for v in clm_vars]
-    return clm_vars, nldas_vars
+            url_vars = list(set(url_vars).union({"temp", "prcp"}))
+        if any(v not in NLDAS2_VARS for v in url_vars):
+            raise InputValueError("variables", list(NLDAS2_VARS))
+        url_vars, clm_vars = zip(
+            *((f"{source_tag}:{NLDAS2_VARS[v]['nldas_name']}", v) for v in url_vars)
+        )
+    return url_vars, clm_vars
 
 
 def _get_dates(
@@ -297,83 +256,103 @@ def _get_dates(
     end = pd.to_datetime(end_date) + pd.Timedelta("1D")
     if start < pd.to_datetime("1979-01-01T13"):
         raise InputRangeError("start_date", "1979-01-01 to yesterday")
-    if end > pd.Timestamp.now() - pd.Timedelta("1D"):  # pyright: ignore[reportOperatorIssue]
+    if end > pd.Timestamp.now() - pd.Timedelta("1D"):
         raise InputRangeError("end_date", "1979-01-01 to yesterday")
     if end <= start:
         raise InputRangeError("end_date", "after start_date")
 
     dates = pd.date_range(start, end, freq="10000D").tolist()
     dates = [*dates, end] if dates[-1] < end else dates
-    return dates  # pyright: ignore[reportReturnType]
+    return dates
 
 
-def _byloc(
-    lon: float,
-    lat: float,
+def _download_files(
+    lons: Iterable[float],
+    lats: Iterable[float],
+    variables: str | list[str] | None,
+    snow: bool,
     start_date: str,
     end_date: str,
-    variables: str | list[str] | None,
-    n_conn: int,
-    snow: bool,
-    snow_params: dict[str, float] | None,
-    source: Literal["grib", "netcdf"],
-) -> pd.DataFrame:
-    """Get NLDAS climate forcing data for a single location."""
+) -> dict[tuple[float, float], dict[str, list[Path]]]:
+    """Download NLDAS data and return a dictionary of files grouped by location and variable."""
     dates = _get_dates(start_date, end_date)
-    clm_vars, nldas_vars = _get_variables(variables, snow, source)
-    kwds = [
-        {
-            "params": {
-                "type": "asc2",
-                "location": f"GEOM:POINT({lon}, {lat})",
-                "variable": v,
-                "startDate": s.strftime(DATE_FMT),
-                "endDate": e.strftime(DATE_FMT),
-            }
-        }
-        for (s, e), v in itertools.product(zip(dates[:-1], dates[1:]), clm_vars)
-    ]
-
-    n_conn = min(n_conn, 4)
-    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
-
-    clm_list = (_txt2df(txt, i, kwds, source=source) for i, txt in enumerate(resp))
-
-    clm_merged = (
-        pd.concat(df)
-        for _, df in itertools.groupby(
-            sorted(clm_list, key=lambda x: str(x.name)), lambda x: str(x.name)
+    url_vars, clm_vars = _get_variables(variables, snow)
+    meta, urls = zip(
+        *(
+            (
+                (float(lon), float(lat), v),
+                f"{URL}?"
+                + urlencode(
+                    {
+                        "variable": url_v,
+                        "location": f"GEOM:POINT({lon}, {lat})",
+                        "startDate": s.strftime(DATE_FMT),
+                        "endDate": e.strftime(DATE_FMT),
+                        "type": "asc2",
+                    }
+                ),
+            )
+            for lon, lat in zip(lons, lats)
+            for (url_v, v), (s, e) in itertools.product(
+                zip(url_vars, clm_vars), zip(dates[:-1], dates[1:])
+            )
         )
     )
-    clm = pd.concat(clm_merged, axis=1).rename(
-        columns={d["nldas_name"]: n for n, d in nldas_vars.items()}
-    )
 
+    hr_cache = os.getenv("HYRIVER_CACHE_NAME")
+    cache_dir = Path(hr_cache).parent if hr_cache else Path("cache")
+    cache_dir.mkdir(exist_ok=True, parents=True)
+    file_paths = [
+        cache_dir / f"{x}_{y}_{v}_{hashlib.sha256(url.encode()).hexdigest()}.txt"
+        for (x, y, v), url in zip(meta, urls)
+    ]
+    stream_write(urls, file_paths)
+    # group based on lon, lat, and variable, i.e, dict of dict of list
+    grouped_files = {}
+    for (x, y, v), f in zip(meta, file_paths):
+        if (x, y) not in grouped_files:
+            grouped_files[(x, y)] = {}
+        if v not in grouped_files[(x, y)]:
+            grouped_files[(x, y)][v] = []
+
+        grouped_files[(x, y)][v].append(f)
+    return grouped_files
+
+
+def _by_coord(
+    txt_files: dict[str, list[Path]],
+    start_date: str,
+    end_date: str,
+    snow: bool,
+    snow_params: dict[str, float] | None,
+) -> pd.DataFrame:
+    """Get NLDAS climate forcing data for a single location."""
+    clm = (
+        pd.concat((pd.concat(_txt2df(v, f) for f in resp) for v, resp in txt_files.items()), axis=1)
+        .loc[start_date:end_date]
+        .rename(columns={d["nldas_name"]: n for n, d in NLDAS2_VARS.items()})
+    )
     if snow:
         params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
         clm = separate_snow(clm, **params)
-    clm.index.name = "time"
-    clm.index = pd.to_datetime(clm.index).tz_localize(None)
-    return clm.loc[start_date:end_date]
+    return clm
 
 
 def _get_lon_lat(
     coords: list[tuple[float, float]] | tuple[float, float],
-    crs: CRSTYPE,
+    bounds: tuple[float, float, float, float],
+    coords_id: Sequence[str | int] | None,
+    crs: CRSType,
+    to_xarray: bool,
 ) -> tuple[list[float], list[float]]:
     """Get longitude and latitude from a list of coordinates."""
-    try:
-        coords_list = hgu.coords_list(coords)
-    except hgu.exceptions.InputTypeError as ex:
-        raise InputTypeError("coords", "tuple of length 2 or list of tuples") from ex
+    coords_list = utils.transform_coords(coords, crs, 4326)
 
-    xx, yy = zip(*coords_list)
-    if pyproj.CRS(crs) == pyproj.CRS(4326):
-        return list(xx), list(yy)
+    if to_xarray and coords_id is not None and len(coords_id) != len(coords_list):
+        raise InputTypeError("coords_id", "list with the same length as of coords")
 
-    project = pyproj.Transformer.from_crs(crs, 4326, always_xy=True).transform
-    lons, lats = project(xx, yy)
-    return list(lons), list(lats)
+    lon, lat = utils.validate_coords(coords_list, bounds).T
+    return lon.tolist(), lat.tolist()
 
 
 def get_bycoords(
@@ -381,13 +360,11 @@ def get_bycoords(
     start_date: str,
     end_date: str,
     coords_id: Sequence[str | int] | None = None,
-    crs: CRSTYPE = 4326,
+    crs: CRSType = 4326,
     variables: str | list[str] | None = None,
     to_xarray: bool = False,
-    n_conn: int = 4,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
-    source: Literal["grib", "netcdf"] = "grib",
 ) -> pd.DataFrame | xr.Dataset:
     """Get NLDAS-2 climate forcing data for a list of coordinates.
 
@@ -404,13 +381,9 @@ def get_bycoords(
     variables : str or list of str, optional
         Variables to download. If None, all variables are downloaded.
         Valid variables are: ``prcp``, ``pet``, ``temp``, ``wind_u``, ``wind_v``,
-        ``rlds``, ``rsds``, and ``humidity`` (and ``psurf`` if ``source=netcdf``)
+        ``rlds``, ``rsds``, and ``humidity`` and ``psurf``.
     to_xarray : bool, optional
         If True, the data is returned as an xarray dataset.
-    n_conn : int, optional
-        Number of parallel connections to use for retrieving data, defaults to 4.
-        The maximum number of connections is 4, if more than 4 are requested, 4
-        connections will be used.
     snow : bool, optional
         Compute snowfall from precipitation and temperature. Defaults to ``False``.
     snow_params : dict, optional
@@ -420,118 +393,61 @@ def get_bycoords(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
-    source: {"grib", "netcdf"}, optional
-        Source to pull data rods from. Valid sources are: ``grib`` and ``netcdf``.
 
     Returns
     -------
     pandas.DataFrame
         The requested data as a dataframe.
     """
-    lons, lats = _get_lon_lat(coords, crs)
-
     bounds = (-125.0, 25.0, -67.0, 53.0)
-    points = hgu.Coordinates(lons, lats, bounds).points
-    n_pts = len(points)
-    if n_pts == 0 or n_pts != len(lons):
-        raise InputRangeError("coords", str(bounds))
+    lons, lats = _get_lon_lat(coords, bounds, coords_id, crs, to_xarray)
+    n_pts = len(lons)
+    grouped_files = _download_files(lons, lats, variables, snow, start_date, end_date)
 
-    idx = list(coords_id) if coords_id is not None else [f"P{i}" for i in range(n_pts)]
-    if len(idx) != n_pts:
-        raise InputValueError("coords_id", "same length as coords")
-
-    nldas = functools.partial(
-        _byloc,
-        start_date=start_date,
-        end_date=end_date,
-        variables=variables,
-        n_conn=n_conn,
-        snow=snow,
-        snow_params=snow_params,
-        source=source,
-    )
-
-    _, nldas_vars = _get_variables(variables, snow, source)
-
-    clm_list = itertools.starmap(nldas, zip(points.x, points.y))
+    idx = list(coords_id) if coords_id is not None else list(range(n_pts))
+    idx = dict(zip(zip(lons, lats), idx))
+    clm_dict = {
+        idx[c]: _by_coord(file, start_date, end_date, snow, snow_params)
+        for c, file in grouped_files.items()
+    }
     if to_xarray:
         clm_ds = xr.concat(
-            (xr.Dataset.from_dataframe(clm) for clm in clm_list), dim=pd.Index(idx, name="id")
+            (xr.Dataset.from_dataframe(clm) for clm in clm_dict.values()),
+            dim=pd.Index(list(clm_dict), name="id"),
         )
         clm_ds.attrs["tz"] = "UTC"
-        for v in clm_ds.data_vars:
-            clm_ds[v].attrs = nldas_vars[str(v)]
         return clm_ds
 
     if n_pts == 1:
-        clm = next(iter(clm_list), pd.DataFrame())
+        clm = next(iter(clm_dict.values()), pd.DataFrame())
     else:
-        clm = pd.concat(clm_list, keys=idx, axis=1)
+        clm = pd.concat(clm_dict.values(), keys=list(clm_dict), axis=1)
         clm.columns = clm.columns.set_names(["id", "variable"])
     clm.index = pd.DatetimeIndex(clm.index, tz="UTC")
     clm.index.name = "time"
     return clm
 
 
-def get_grid_mask():
-    """Get the NLDAS-2 grid that contains the land/water/soil/vegetation mask.
-
-    Returns
-    -------
-    xarray.Dataset
-        The grid mask.
-    """
-    url = "/".join(
-        (
-            "https://ldas.gsfc.nasa.gov/sites/default",
-            "files/ldas/nldas/NLDAS_masks-veg-soil.nc4",
-        )
-    )
-    resp = ar.retrieve_binary([url])
-    grid = xr.open_dataset(BytesIO(resp[0]), engine="h5netcdf")
-    grid = hgu.xd_write_crs(grid, 4326)
-    return grid
-
-
 def _txt2da(
-    txt: str,
-    resp_id: int,
-    kwds: list[dict[str, dict[str, str]]],
-    source: Literal["grib", "netcdf"],
+    lon: float,
+    lat: float,
+    name: str,
+    txt_file: Path,
 ) -> xr.DataArray:
     """Convert text to dataarray."""
-    try:
-        if source == "grib":
-            data = pd.read_csv(StringIO(txt), skiprows=39, sep=r"\s+").dropna()
-            data.index = pd.to_datetime(data.index + " " + data[DATE_COL], utc=True)
-        else:
-            data = pd.read_csv(StringIO(txt), skiprows=12, sep=r"\s+").dropna()
-            data.index = pd.to_datetime(data[DATE_COL], utc=True)
-    except EmptyDataError:
-        return xr.DataArray(name=kwds[resp_id]["params"]["variable"].split(":")[-1])
-    except UFuncTypeError as ex:
-        msg = "".join(re.findall("<strong>(.*?)</strong>", txt, re.DOTALL)).strip()
-        raise NLDASServiceError(msg) from ex
-
-    data = data["Data"]
-    data.name = kwds[resp_id]["params"]["variable"].split(":")[-1]
-    data.index.name = "time"
-    data.index = data.index.tz_localize(None)  # pyright: ignore[reportGeneralTypeIssues]
+    data = _txt2df(name, txt_file)
     da = data.to_xarray()
-    lon, lat = kwds[resp_id]["params"]["location"].split("(")[-1].strip(")").split(",")
-    return da.assign_coords(x=float(lon), y=float(lat)).expand_dims("y").expand_dims("x")
+    return da.assign_coords(x=lon, y=lat).expand_dims("y").expand_dims("x")
 
 
 def get_bygeom(
     geometry: Polygon | MultiPolygon | tuple[float, float, float, float],
     start_date: str,
     end_date: str,
-    geo_crs: CRSTYPE,
+    geo_crs: CRSType = 4326,
     variables: str | list[str] | None = None,
-    n_conn: int = 4,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
-    source: Literal["grib", "netcdf"] = "grib",
 ) -> xr.Dataset:
     """Get hourly NLDAS-2 climate forcing within a geometry at 0.125 resolution.
 
@@ -548,10 +464,7 @@ def get_bygeom(
     variables : str or list of str, optional
         Variables to download. If None, all variables are downloaded.
         Valid variables are: ``prcp``, ``pet``, ``temp``, ``wind_u``, ``wind_v``,
-        ``rlds``, ``rsds``, and ``humidity`` (and ``psurf`` if ``source=netcdf``)
-    n_conn : int, optional
-        Number of parallel connections to use for retrieving data, defaults to 4.
-        It should be less than 4.
+        ``rlds``, ``rsds``, and ``humidity`` and ``psurf``.
     snow : bool, optional
         Compute snowfall from precipitation and temperature. Defaults to ``False``.
     snow_params : dict, optional
@@ -561,52 +474,36 @@ def get_bygeom(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
-    source: {"grib", "netcdf"}, optional
-        Source to pull data rods from. Valid sources are: ``grib`` and ``netcdf``.
 
     Returns
     -------
     xarray.Dataset
         The requested forcing data.
     """
-    dates = _get_dates(start_date, end_date)
-    clm_vars, nldas_vars = _get_variables(variables, snow, source)
-
-    nldas_grid = get_grid_mask()
-    geom = hgu.geo2polygon(geometry, geo_crs, nldas_grid.rio.crs)
+    nldas_grid = utils.get_grid_mask()
+    geom = utils.to_geometry(geometry, geo_crs, nldas_grid.rio.crs)
     msk = nldas_grid.CONUS_mask.rio.clip([geom], all_touched=True)
-    coords = itertools.product(msk.get_index("lon"), msk.get_index("lat"))
-    kwds = [
-        {
-            "params": {
-                "type": "asc2",
-                "location": f"GEOM:POINT({lon}, {lat})",
-                "variable": v,
-                "startDate": s.strftime(DATE_FMT),
-                "endDate": e.strftime(DATE_FMT),
-            }
-        }
-        for (lon, lat), (s, e), v in itertools.product(coords, zip(dates[:-1], dates[1:]), clm_vars)
-    ]
+    lons, lats = zip(*itertools.product(msk.get_index("lon"), msk.get_index("lat")))
+    grouped_files = _download_files(lons, lats, variables, snow, start_date, end_date)
 
-    n_conn = min(n_conn, 4)
-    resp = ar.retrieve_text([URL] * len(kwds), kwds, max_workers=n_conn)
-    clm = xr.merge(_txt2da(txt, i, kwds, source=source) for i, txt in enumerate(resp))
+    clm = xr.merge(
+        _txt2da(x, y, f, r)
+        for (x, y), v_files in grouped_files.items()
+        for f, resp in v_files.items()
+        for r in resp
+    )
     clm = (
-        clm.rename({d["nldas_name"]: n for n, d in nldas_vars.items() if d["nldas_name"] in clm})
+        clm.rename(
+            {d["nldas_name"]: n for n, d in NLDAS2_VARS.items() if d["nldas_name"] in clm.data_vars}
+        )
         .sel(time=slice(start_date, end_date))
         .transpose("time", "y", "x")
     )
     clm.attrs["tz"] = "UTC"
-    for v in clm:
-        clm[v].attrs = nldas_vars[str(v)]
-    clm = hgu.xd_write_crs(clm, nldas_grid.rio.crs)
+    for v in clm.data_vars:
+        clm[v].attrs = NLDAS2_VARS[str(v)]
+    clm = clm.rio.write_crs(nldas_grid.rio.crs)
     if snow:
         params = {"t_rain": T_RAIN, "t_snow": T_SNOW} if snow_params is None else snow_params
         clm = separate_snow(clm, **params)
-    if isinstance(geometry, (list, tuple)) and pyproj.CRS(geo_crs) == pyproj.CRS(
-        nldas_grid.rio.crs
-    ):
-        return clm
-    clm = hgu.xarray_geomask(clm, geometry, geo_crs, all_touched=True)
     return clm
