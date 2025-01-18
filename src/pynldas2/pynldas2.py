@@ -9,7 +9,7 @@ import os
 import re
 import warnings
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Callable, TypeVar, Union
+from typing import TYPE_CHECKING, Any, Callable, TypeVar
 from urllib.parse import urlencode
 
 import numpy as np
@@ -55,11 +55,11 @@ except ImportError:
 if TYPE_CHECKING:
     from collections.abc import Iterable, Sequence
 
-    import pyproj
-    from shapely import MultiPolygon, Polygon
+    from pyproj import CRS
+    from shapely import Polygon
 
-    DF = TypeVar("DF", pd.DataFrame, xr.Dataset)
-    CRSType = Union[int, str, pyproj.CRS]
+    CRSType = int | str | CRS
+    Dataset = TypeVar("Dataset", pd.DataFrame, xr.Dataset)
 
 # Default snow params from https://doi.org/10.5194/gmd-11-1077-2018
 T_RAIN = 2.5  # degC
@@ -174,7 +174,7 @@ def _snow_gridded(climate: xr.Dataset, t_rain: float, t_snow: float) -> xr.Datas
     return clm
 
 
-def separate_snow(clm: DF, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> DF:
+def separate_snow(clm: Dataset, t_rain: float = T_RAIN, t_snow: float = T_SNOW) -> Dataset:
     """Separate snow based on :footcite:t:`Martinez_2010`.
 
     Parameters

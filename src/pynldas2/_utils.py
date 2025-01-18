@@ -17,13 +17,12 @@ import xarray as xr
 from pyproj import Transformer
 from pyproj.exceptions import CRSError as ProjCRSError
 from rioxarray.exceptions import OneDimensionalRaster
-from shapely import MultiPolygon, Polygon, ops
+from shapely import Polygon, ops
 
 from pynldas2.exceptions import DownloadError, InputRangeError, InputTypeError
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
-    from shapely import Polygon
 
     CRSType = int | str | pyproj.CRS
     PolyType = Polygon | tuple[float, float, float, float]
