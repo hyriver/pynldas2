@@ -39,6 +39,7 @@ dynamic = [
 dependencies = [
   "aiofiles",
   "aiohttp>=3.8.3",
+  "nest-asyncio",
   "netcdf4",
   "numpy>=2",
   "pandas>=1",
