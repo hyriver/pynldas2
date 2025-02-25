@@ -15,11 +15,11 @@ from urllib.parse import urlencode
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
-import tiny_retriever as terry
 import xarray as xr
 from pandas.errors import EmptyDataError
 
 import pynldas2._utils as utils
+import tiny_retriever as terry
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
 try:

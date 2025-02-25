@@ -11,13 +11,13 @@ from typing import TYPE_CHECKING
 import numpy as np
 import pyproj
 import shapely
-import tiny_retriever as terry
 import xarray as xr
 from pyproj import Transformer
 from pyproj.exceptions import CRSError as ProjCRSError
 from rioxarray.exceptions import OneDimensionalRaster
 from shapely import Polygon, ops
 
+import tiny_retriever as terry
 from pynldas2.exceptions import InputRangeError, InputTypeError
 
 if TYPE_CHECKING:
