@@ -15,11 +15,11 @@ from urllib.parse import urlencode
 import numpy as np
 import numpy.typing as npt
 import pandas as pd
+import tiny_retriever as terry
 import xarray as xr
 from pandas.errors import EmptyDataError
 
 import pynldas2._utils as utils
-from pynldas2._streaming import stream_write
 from pynldas2.exceptions import InputRangeError, InputTypeError, InputValueError, NLDASServiceError
 
 try:
@@ -306,7 +306,7 @@ def _download_files(
         cache_dir / f"{x}_{y}_{v}_{hashlib.sha256(url.encode()).hexdigest()}.txt"
         for (x, y, v), url in zip(meta, urls)
     ]
-    stream_write(urls, file_paths)
+    terry.download(urls, file_paths)
     # group based on lon, lat, and variable, i.e, dict of dict of list
     grouped_files = {}
     for (x, y, v), f in zip(meta, file_paths):

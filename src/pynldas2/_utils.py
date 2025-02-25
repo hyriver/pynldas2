@@ -7,19 +7,18 @@ from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.error import HTTPError
-from urllib.request import urlretrieve
 
 import numpy as np
 import pyproj
 import shapely
+import tiny_retriever as terry
 import xarray as xr
 from pyproj import Transformer
 from pyproj.exceptions import CRSError as ProjCRSError
 from rioxarray.exceptions import OneDimensionalRaster
 from shapely import Polygon, ops
 
-from pynldas2.exceptions import DownloadError, InputRangeError, InputTypeError
+from pynldas2.exceptions import InputRangeError, InputTypeError
 
 if TYPE_CHECKING:
     from numpy.typing import NDArray
@@ -171,10 +170,7 @@ def get_grid_mask(save_dir: str | Path | None = None) -> xr.Dataset:
     nc_path = save_dir / Path(url).name
     if nc_path.exists():
         return xr.open_dataset(nc_path, decode_coords="all")
-    try:
-        urlretrieve(url, nc_path)
-    except HTTPError as ex:
-        raise DownloadError(url, str(ex)) from ex
+    terry.download(url, nc_path)
     with xr.open_dataset(nc_path) as ds:
         grid = ds.rio.write_crs(4326).load()
     nc_path.unlink()
