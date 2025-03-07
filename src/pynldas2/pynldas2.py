@@ -273,6 +273,8 @@ def _download_files(
     snow: bool,
     start_date: str,
     end_date: str,
+    validate_filesize: bool,
+    timeout: int,
 ) -> dict[tuple[float, float], dict[str, list[Path]]]:
     """Download NLDAS data and return a dictionary of files grouped by location and variable."""
     dates = _get_dates(start_date, end_date)
@@ -306,7 +308,10 @@ def _download_files(
         cache_dir / f"{x}_{y}_{v}_{hashlib.sha256(url.encode()).hexdigest()}.txt"
         for (x, y, v), url in zip(meta, urls)
     ]
-    terry.download(urls, file_paths)
+    if not validate_filesize and all(f.exists() and f.stat().st_size > 0 for f in file_paths):
+        pass
+    else:
+        terry.download(urls, file_paths, timeout=timeout)
     # group based on lon, lat, and variable, i.e, dict of dict of list
     grouped_files = {}
     for (x, y, v), f in zip(meta, file_paths):
@@ -365,6 +370,8 @@ def get_bycoords(
     to_xarray: bool = False,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
+    conn_timeout: int = 1000,
+    validate_filesize: bool = True,
 ) -> pd.DataFrame | xr.Dataset:
     """Get NLDAS-2 climate forcing data for a list of coordinates.
 
@@ -393,6 +400,15 @@ def get_bycoords(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
+    conn_timeout : int, optional
+        Connection timeout in seconds, defaults to 1000.
+    validate_filesize : bool, optional
+        When set to ``True``, the function checks the file size of the previously
+        cached files and will re-download if the local filesize does not match
+        that of the remote. Defaults to ``True``. Setting this to ``False``
+        can be useful when you are sure that the cached files are not corrupted and just
+        want to get the combined dataset more quickly. This is faster because it avoids
+        web requests that are necessary for getting the file sizes.
 
     Returns
     -------
@@ -402,7 +418,9 @@ def get_bycoords(
     bounds = (-125.0, 25.0, -67.0, 53.0)
     lons, lats = _get_lon_lat(coords, bounds, coords_id, crs, to_xarray)
     n_pts = len(lons)
-    grouped_files = _download_files(lons, lats, variables, snow, start_date, end_date)
+    grouped_files = _download_files(
+        lons, lats, variables, snow, start_date, end_date, validate_filesize, conn_timeout
+    )
 
     idx = list(coords_id) if coords_id is not None else list(range(n_pts))
     idx = dict(zip(zip(lons, lats), idx))
@@ -448,6 +466,8 @@ def get_bygeom(
     variables: str | list[str] | None = None,
     snow: bool = False,
     snow_params: dict[str, float] | None = None,
+    conn_timeout: int = 1000,
+    validate_filesize: bool = True,
 ) -> xr.Dataset:
     """Get hourly NLDAS-2 climate forcing within a geometry at 0.125 resolution.
 
@@ -475,6 +495,15 @@ def get_bygeom(
         ``t_snow`` (deg C) which is the threshold for temperature for considering snow.
         The default values are ``{'t_rain': 2.5, 't_snow': 0.6}`` that are adopted from
         https://doi.org/10.5194/gmd-11-1077-2018.
+    conn_timeout : int, optional
+        Connection timeout in seconds, defaults to 1000.
+    validate_filesize : bool, optional
+        When set to ``True``, the function checks the file size of the previously
+        cached files and will re-download if the local filesize does not match
+        that of the remote. Defaults to ``True``. Setting this to ``False``
+        can be useful when you are sure that the cached files are not corrupted and just
+        want to get the combined dataset more quickly. This is faster because it avoids
+        web requests that are necessary for getting the file sizes.
 
     Returns
     -------
@@ -485,7 +514,9 @@ def get_bygeom(
     geom = utils.to_geometry(geometry, geo_crs, nldas_grid.rio.crs)
     msk = nldas_grid.CONUS_mask.rio.clip([geom], all_touched=True)
     lons, lats = zip(*itertools.product(msk.get_index("lon"), msk.get_index("lat")))
-    grouped_files = _download_files(lons, lats, variables, snow, start_date, end_date)
+    grouped_files = _download_files(
+        lons, lats, variables, snow, start_date, end_date, validate_filesize, conn_timeout
+    )
 
     clm = xr.merge(
         _txt2da(x, y, f, r)

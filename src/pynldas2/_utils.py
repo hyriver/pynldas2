@@ -6,7 +6,7 @@ import os
 from collections.abc import Iterable, Sequence
 from functools import lru_cache
 from pathlib import Path
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 import numpy as np
 import pyproj
@@ -25,7 +25,7 @@ if TYPE_CHECKING:
 
     CRSType = int | str | pyproj.CRS
     PolyType = Polygon | tuple[float, float, float, float]
-    Number = int | float | np.number
+    Number = int | float | np.number[Any]
 
 __all__ = [
     "clip_dataset",
@@ -120,9 +120,9 @@ def to_geometry(
         raise InputTypeError("geometry", "a shapley geometry or tuple of length 4")
 
     if geo_crs is not None and crs is not None:
-        return _geo_transform(geom, geo_crs, crs)
+        return _geo_transform(geom, geo_crs, crs)  # pyright: ignore[reportArgumentType]
     elif geo_crs is None and crs is not None:
-        return geom
+        return geom  # pyright: ignore[reportArgumentType]
     raise InputTypeError("geo_crs/crs", "either both None or both valid CRS")
 
 

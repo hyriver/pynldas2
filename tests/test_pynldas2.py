@@ -27,6 +27,7 @@ def assert_close(a: float, b: float, rtol: float = 1e-2) -> bool:
 
 def test_coords():
     clm = nldas.get_bycoords(COORDS, START, END, crs=ALT_CRS, variables=VAR)
+    clm = nldas.get_bycoords(COORDS, START, END, crs=ALT_CRS, variables=VAR, validate_filesize=True)
     assert_close(clm.prcp.mean(), 0.0051)
     assert_close(clm.pet.mean(), 0.1346)
 
