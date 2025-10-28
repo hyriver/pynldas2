@@ -211,8 +211,26 @@ def separate_snow(clm: Dataset, t_rain: float = T_RAIN, t_snow: float = T_SNOW) 
 
 def _txt2df(name: str, txt_file: Path) -> pd.Series:
     """Convert text to dataframe."""
+    # check how many rows to skip
+    skiprows = 0
     try:
-        data = pd.read_csv(txt_file, skiprows=12, sep=r"\s+").dropna()
+        with open(txt_file, 'r') as data:
+            for line in data:
+                if DATE_COL in line:
+                    break
+                else:
+                    skiprows = skiprows + 1
+    except FileNotFoundError:
+        msg = f"Error: The file '{txt_file}' was not found"
+        raise NLDASServiceError(msg)
+    except Exception as e:
+        msg = f"An error occurred: {e}"
+        raise NLDASServiceError(msg)
+
+    # convert text to dataframe
+    try:
+        # data = pd.read_csv(txt_file, skiprows=12, sep=r"\s+").dropna()
+        data = pd.read_csv(txt_file, skiprows=skiprows, sep=r"\s+").dropna()
         data.index = pd.to_datetime(data[DATE_COL], utc=True)
     except EmptyDataError:
         return pd.Series(name=name)
