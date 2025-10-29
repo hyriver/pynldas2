@@ -212,14 +212,11 @@ def separate_snow(clm: Dataset, t_rain: float = T_RAIN, t_snow: float = T_SNOW) 
 def _txt2df(name: str, txt_file: Path) -> pd.Series:
     """Convert text to dataframe."""
     # check how many rows to skip
-    skiprows = 0
     try:
         with open(txt_file, 'r') as data:
-            for line in data:
-                if DATE_COL in line:
-                    break
-                else:
-                    skiprows = skiprows + 1
+            skiprows = next((i for i, line in enumerate(data) if DATE_COL in line), None)
+        if skiprows is None:
+            raise ValueError(f"Error: '{DATE_COL} column doesn't exist in the file '{txt_file}'")
     except FileNotFoundError:
         msg = f"Error: The file '{txt_file}' was not found"
         raise NLDASServiceError(msg)
@@ -229,7 +226,6 @@ def _txt2df(name: str, txt_file: Path) -> pd.Series:
 
     # convert text to dataframe
     try:
-        # data = pd.read_csv(txt_file, skiprows=12, sep=r"\s+").dropna()
         data = pd.read_csv(txt_file, skiprows=skiprows, sep=r"\s+").dropna()
         data.index = pd.to_datetime(data[DATE_COL], utc=True)
     except EmptyDataError:
